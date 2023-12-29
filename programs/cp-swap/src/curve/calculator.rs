@@ -105,9 +105,9 @@ impl CurveCalculator {
         swap_source_amount: u128,
         swap_destination_amount: u128,
         trade_direction: TradeDirection,
-        trade_fee_rate: u32,
-        protocol_fee_rate: u32,
-        fund_fee_rate: u32,
+        trade_fee_rate: u64,
+        protocol_fee_rate: u64,
+        fund_fee_rate: u64,
     ) -> Option<SwapResult> {
         // debit the fee to calculate the amount swapped
         let trade_fee = Fees::trading_fee(source_amount, trade_fee_rate)?;

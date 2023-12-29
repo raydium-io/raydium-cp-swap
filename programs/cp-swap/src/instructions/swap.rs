@@ -13,6 +13,15 @@ pub struct Swap<'info> {
     /// The user performing the swap
     pub payer: Signer<'info>,
 
+    /// CHECK: pool vault and lp mint authority
+    #[account(
+        seeds = [
+            crate::AUTH_SEED.as_bytes(),
+        ],
+        bump,
+    )]
+    pub authority: UncheckedAccount<'info>,
+
     /// The factory state to read protocol fees
     #[account(address = pool_state.load()?.amm_config)]
     pub amm_config: Box<Account<'info, AmmConfig>>,
@@ -60,12 +69,6 @@ pub struct Swap<'info> {
         address = output_vault.mint
     )]
     pub output_token_mint: Box<InterfaceAccount<'info, Mint>>,
-
-    /// CHECK:
-    #[account(
-        address = spl_memo::id()
-    )]
-    pub memo_program: UncheckedAccount<'info>,
 }
 
 pub fn swap(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u64) -> Result<()> {
@@ -175,13 +178,14 @@ pub fn swap(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u64) -> Resu
     )?;
 
     transfer_from_pool_vault_to_user(
-        &ctx.accounts.pool_state,
+        ctx.accounts.authority.to_account_info(),
         ctx.accounts.output_vault.to_account_info(),
         ctx.accounts.output_token_account.to_account_info(),
         ctx.accounts.output_token_mint.to_account_info(),
         ctx.accounts.output_token_program.to_account_info(),
         output_transfer_amount,
         ctx.accounts.output_token_mint.decimals,
+        &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
     )?;
 
     Ok(())

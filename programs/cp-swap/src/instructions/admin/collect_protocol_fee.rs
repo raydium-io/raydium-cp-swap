@@ -13,6 +13,15 @@ pub struct CollectProtocolFee<'info> {
     #[account(constraint = (owner.key() == amm_config.protocol_owner || owner.key() == crate::admin::id()) @ ErrorCode::InvalidOwner)]
     pub owner: Signer<'info>,
 
+    /// CHECK: pool vault and lp mint authority
+    #[account(
+        seeds = [
+            crate::AUTH_SEED.as_bytes(),
+        ],
+        bump,
+    )]
+    pub authority: UncheckedAccount<'info>,
+
     /// Pool state stores accumulated protocol fee amount
     #[account(mut)]
     pub pool_state: AccountLoader<'info, PoolState>,
@@ -69,6 +78,7 @@ pub fn collect_protocol_fee(
 ) -> Result<()> {
     let amount_0: u64;
     let amount_1: u64;
+    let auth_bump: u8;
     {
         let mut pool_state = ctx.accounts.pool_state.load_mut()?;
 
@@ -83,9 +93,11 @@ pub fn collect_protocol_fee(
             .protocol_fees_token_1
             .checked_sub(amount_1)
             .unwrap();
+
+        auth_bump = pool_state.auth_bump;
     }
     transfer_from_pool_vault_to_user(
-        &ctx.accounts.pool_state,
+        ctx.accounts.authority.to_account_info(),
         ctx.accounts.token_0_vault.to_account_info(),
         ctx.accounts.recipient_token_0_account.to_account_info(),
         ctx.accounts.vault_0_mint.to_account_info(),
@@ -96,10 +108,11 @@ pub fn collect_protocol_fee(
         },
         amount_0,
         ctx.accounts.vault_0_mint.decimals,
+        &[&[crate::AUTH_SEED.as_bytes(), &[auth_bump]]],
     )?;
 
     transfer_from_pool_vault_to_user(
-        &ctx.accounts.pool_state,
+        ctx.accounts.authority.to_account_info(),
         ctx.accounts.token_1_vault.to_account_info(),
         ctx.accounts.recipient_token_1_account.to_account_info(),
         ctx.accounts.vault_1_mint.to_account_info(),
@@ -110,6 +123,7 @@ pub fn collect_protocol_fee(
         },
         amount_1,
         ctx.accounts.vault_1_mint.decimals,
+        &[&[crate::AUTH_SEED.as_bytes(), &[auth_bump]]],
     )?;
 
     Ok(())

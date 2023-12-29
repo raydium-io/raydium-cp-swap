@@ -12,6 +12,15 @@ pub struct Withdraw<'info> {
     /// Pays to mint the position
     pub owner: Signer<'info>,
 
+    /// CHECK: pool vault and lp mint authority
+    #[account(
+        seeds = [
+            crate::AUTH_SEED.as_bytes(),
+        ],
+        bump,
+    )]
+    pub authority: UncheckedAccount<'info>,
+
     /// Pool state account
     #[account(mut)]
     pub pool_state: AccountLoader<'info, PoolState>,
@@ -90,7 +99,7 @@ pub fn withdraw<>(
     minimum_token_1_amount: u64,
 ) -> Result<()> {
     require_gt!(ctx.accounts.lp_mint.supply, 0);
-    let pool_state = ctx.accounts.pool_state.load()?;
+    let pool_state = &mut ctx.accounts.pool_state.load_mut()?;
     if !pool_state.get_status_by_bit(PoolStatusBitIndex::Withdraw) {
         return err!(ErrorCode::NotApproved);
     }
@@ -101,7 +110,7 @@ pub fn withdraw<>(
         );
     let results = CurveCalculator::lp_tokens_to_trading_tokens(
         u128::from(lp_token_amount),
-         u128::from(ctx.accounts.lp_mint.supply),
+         u128::from(pool_state.lp_supply),
          u128::from(total_token_0_amount),
          u128::from(total_token_1_amount),
         RoundDirection::Floor,
@@ -130,18 +139,21 @@ pub fn withdraw<>(
     .unwrap();
     if receive_token_1_amount < minimum_token_1_amount {
         return Err(ErrorCode::ExceededSlippage.into());
-    }
+    }   
 
+    pool_state.lp_supply = pool_state.lp_supply.checked_sub(lp_token_amount).unwrap();
     token_burn(
         &ctx.accounts.pool_state,
         ctx.accounts.token_program.to_account_info(),
         ctx.accounts.lp_mint.to_account_info(),
         ctx.accounts.owner_lp_token.to_account_info(),
         lp_token_amount,
+        &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
     )?;
+  
 
     transfer_from_pool_vault_to_user(
-        &ctx.accounts.pool_state,
+        ctx.accounts.authority.to_account_info(),
         ctx.accounts.token_0_vault.to_account_info(),
         ctx.accounts.token_0_account.to_account_info(),
         ctx.accounts.vault_0_mint.to_account_info(),
@@ -151,11 +163,12 @@ pub fn withdraw<>(
             ctx.accounts.token_program_2022.to_account_info()
         },
         receive_token_0_amount,
-        ctx.accounts.vault_0_mint.decimals
+        ctx.accounts.vault_0_mint.decimals,
+        &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]]
     )?;
 
     transfer_from_pool_vault_to_user(
-        &ctx.accounts.pool_state,
+        ctx.accounts.pool_state.to_account_info(),
         ctx.accounts.token_1_vault.to_account_info(),
         ctx.accounts.token_1_account.to_account_info(),
         ctx.accounts.vault_1_mint.to_account_info(),
@@ -165,6 +178,7 @@ pub fn withdraw<>(
             ctx.accounts.token_program_2022.to_account_info()
         },
         receive_token_1_amount,
-        ctx.accounts.vault_1_mint.decimals
+        ctx.accounts.vault_1_mint.decimals,
+        &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]]
     )
 }

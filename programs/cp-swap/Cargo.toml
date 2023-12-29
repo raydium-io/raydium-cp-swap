@@ -1,12 +1,12 @@
 [package]
-name = "token-swap"
+name = "raydium-cp-swap"
 version = "0.1.0"
 description = "Created with Anchor"
 edition = "2021"
 
 [lib]
 crate-type = ["cdylib", "lib"]
-name = "token_swap"
+name = "cp_swap"
 
 [features]
 no-entrypoint = []
@@ -20,6 +20,7 @@ devnet = []
 [dependencies]
 anchor-lang = { version = "0.29.0", features = ["init-if-needed"] }
 anchor-spl = { version = "0.29.0", features = ["metadata"] }
+spl-token = { version = "4.0.0", features = ["no-entrypoint"] }
 spl-math = { version = "0.2", features = ["no-entrypoint"] }
 spl-memo = "4.0.0"
 uint = "0.9.1"

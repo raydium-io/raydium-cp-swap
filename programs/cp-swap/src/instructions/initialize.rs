@@ -3,10 +3,10 @@ use crate::error::ErrorCode;
 use crate::states::*;
 use crate::utils::*;
 use anchor_lang::prelude::*;
+use anchor_lang::solana_program::{program::invoke, system_instruction};
 use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token::Token;
 use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
-
 #[derive(Accounts)]
 pub struct Initialize<'info> {
     /// Address paying to create the pool. Can be anyone
@@ -15,6 +15,15 @@ pub struct Initialize<'info> {
 
     /// Which config the pool belongs to.
     pub amm_config: Box<Account<'info, AmmConfig>>,
+
+    /// CHECK: pool vault and lp mint authority
+    #[account(
+        seeds = [
+            crate::AUTH_SEED.as_bytes(),
+        ],
+        bump,
+    )]
+    pub authority: UncheckedAccount<'info>,
 
     /// Initialize an account to store the pool state
     #[account(
@@ -57,7 +66,7 @@ pub struct Initialize<'info> {
         }else{
             token_1_mint.decimals
         },
-        mint::authority = pool_state.key(),
+        mint::authority = authority,
         payer = creator,
         mint::token_program = token_program,
     )]
@@ -89,35 +98,44 @@ pub struct Initialize<'info> {
     )]
     pub creator_lp_token: Box<InterfaceAccount<'info, TokenAccount>>,
 
-    /// pool locked lp token account
-    #[account(
-        init,
-        associated_token::mint = lp_mint,
-        associated_token::authority = pool_state,
-        payer = creator,
-        token::token_program = token_program,
-    )]
-    pub lock_lp_token: Box<InterfaceAccount<'info, TokenAccount>>,
-
     /// Token_0 vault for the pool
     #[account(
         init,
-        associated_token::mint = token_0_mint,
-        associated_token::authority = pool_state,
+        seeds = [
+            POOL_VAULT_SEED.as_bytes(),
+            pool_state.key().as_ref(),
+            token_0_mint.key().as_ref()
+        ],
+        bump,
         payer = creator,
-        token::token_program = token_0_program,
+        token::mint = token_0_mint,
+        token::authority = authority,
+        token::token_program = token_0_program
     )]
     pub token_0_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// Token_1 vault for the pool
     #[account(
         init,
-        associated_token::mint = token_1_mint,
-        associated_token::authority = pool_state,
+        seeds = [
+            POOL_VAULT_SEED.as_bytes(),
+            pool_state.key().as_ref(),
+            token_1_mint.key().as_ref()
+        ],
+        bump,
         payer = creator,
-        token::token_program = token_program_1,
+        token::mint = token_1_mint,
+        token::authority = authority,
+        token::token_program = token_1_program
     )]
     pub token_1_vault: Box<InterfaceAccount<'info, TokenAccount>>,
+
+    /// create pool fee account
+    #[account(
+        mut,
+        address= crate::create_pool_fee_reveiver::id(),
+    )]
+    pub create_pool_fee: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// Program to create mint account and mint tokens
     pub token_program: Program<'info, Token>,
@@ -139,6 +157,11 @@ pub fn initialize(ctx: Context<Initialize>, init_amount_0: u64, init_amount_1: u
     {
         return err!(ErrorCode::NotSupportMint);
     }
+
+    if ctx.accounts.amm_config.disable_create_pool {
+        return err!(ErrorCode::NotApproved);
+    }
+
     let pool_state = &mut ctx.accounts.pool_state.load_init()?;
 
     transfer_from_user_to_pool_vault(
@@ -179,23 +202,43 @@ pub fn initialize(ctx: Context<Initialize>, init_amount_0: u64, init_amount_1: u
         .unwrap();
 
     token::token_mint_to(
-        &ctx.accounts.pool_state,
+        ctx.accounts.pool_state.to_account_info(),
         ctx.accounts.token_program.to_account_info(),
         ctx.accounts.lp_mint.to_account_info(),
         ctx.accounts.creator_lp_token.to_account_info(),
         liquidity.checked_sub(lock_lp_amount).unwrap(),
+        &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
     )?;
 
-    token::token_mint_to(
-        &ctx.accounts.pool_state,
-        ctx.accounts.token_program.to_account_info(),
-        ctx.accounts.lp_mint.to_account_info(),
-        ctx.accounts.lock_lp_token.to_account_info(),
-        lock_lp_amount,
-    )?;
+    // Charge the fee to create a pool
+    if ctx.accounts.amm_config.create_pool_fee != 0 {
+        invoke(
+            &system_instruction::transfer(
+                ctx.accounts.creator.key,
+                &ctx.accounts.create_pool_fee.key(),
+                u64::from(ctx.accounts.amm_config.create_pool_fee),
+            ),
+            &[
+                ctx.accounts.creator.to_account_info(),
+                ctx.accounts.create_pool_fee.to_account_info(),
+                ctx.accounts.system_program.to_account_info(),
+            ],
+        )?;
+        invoke(
+            &spl_token::instruction::sync_native(
+                ctx.accounts.token_program.key,
+                &ctx.accounts.create_pool_fee.key(),
+            )?,
+            &[
+                ctx.accounts.token_program.to_account_info(),
+                ctx.accounts.create_pool_fee.to_account_info(),
+            ],
+        )?;
+    }
 
     pool_state.initialize(
-        ctx.bumps.pool_state,
+        ctx.bumps.authority,
+        liquidity,
         ctx.accounts.creator.key(),
         ctx.accounts.amm_config.key(),
         ctx.accounts.token_0_vault.key(),

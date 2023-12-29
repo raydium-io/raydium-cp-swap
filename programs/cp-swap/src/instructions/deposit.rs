@@ -12,6 +12,15 @@ pub struct Deposit<'info> {
     /// Pays to mint the position
     pub owner: Signer<'info>,
 
+    /// CHECK: pool vault and lp mint authority
+    #[account(
+        seeds = [
+            crate::AUTH_SEED.as_bytes(),
+        ],
+        bump,
+    )]
+    pub authority: UncheckedAccount<'info>,
+
     #[account(mut)]
     pub pool_state: AccountLoader<'info, PoolState>,
 
@@ -80,7 +89,7 @@ pub fn deposit(
 ) -> Result<()> {
     require_gt!(ctx.accounts.lp_mint.supply, 0);
 
-    let pool_state = ctx.accounts.pool_state.load()?;
+    let pool_state = &mut ctx.accounts.pool_state.load_mut()?;
     if !pool_state.get_status_by_bit(PoolStatusBitIndex::Deposit) {
         return err!(ErrorCode::NotApproved);
     }
@@ -90,7 +99,7 @@ pub fn deposit(
     );
     let results = CurveCalculator::lp_tokens_to_trading_tokens(
         u128::from(lp_token_amount),
-        u128::from(ctx.accounts.lp_mint.supply),
+        u128::from(pool_state.lp_supply),
         u128::from(total_token_0_amount),
         u128::from(total_token_1_amount),
         RoundDirection::Ceiling,
@@ -148,11 +157,14 @@ pub fn deposit(
         ctx.accounts.vault_1_mint.decimals,
     )?;
 
+    pool_state.lp_supply = pool_state.lp_supply.checked_add(lp_token_amount).unwrap();
+
     token_mint_to(
-        &ctx.accounts.pool_state,
+        ctx.accounts.authority.to_account_info(),
         ctx.accounts.token_program.to_account_info(),
         ctx.accounts.lp_mint.to_account_info(),
         ctx.accounts.owner_lp_token.to_account_info(),
         lp_token_amount,
+        &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
     )
 }

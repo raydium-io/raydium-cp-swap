@@ -21,6 +21,16 @@ pub mod admin {
     declare_id!("GThUX1Atko4tqhN2NaiTazWSeFWMuiUvfFnyJyUghFMJ");
 }
 
+pub mod create_pool_fee_reveiver {
+    use anchor_lang::prelude::declare_id;
+    #[cfg(feature = "devnet")]
+    declare_id!("G11FKBRaAkHAKuLCgLM6K6NUc9rTjPAznRCjZifrTQe2");
+    #[cfg(not(feature = "devnet"))]
+    declare_id!("DNXgeM9EiiaAbaWvwjHj9fQQLAX5ZsfHyvmYUNRAdNC8");
+}
+
+pub const AUTH_SEED: &str = "vault_and_lp_mint_auth_seed";
+
 #[program]
 pub mod cp_swap {
     use super::*;
@@ -37,9 +47,10 @@ pub mod cp_swap {
     pub fn create_amm_config(
         ctx: Context<CreateAmmConfig>,
         index: u16,
-        trade_fee_rate: u32,
-        protocol_fee_rate: u32,
-        fund_fee_rate: u32,
+        trade_fee_rate: u64,
+        protocol_fee_rate: u64,
+        fund_fee_rate: u64,
+        create_pool_fee: u64,
     ) -> Result<()> {
         assert!(trade_fee_rate < FEE_RATE_DENOMINATOR_VALUE);
         assert!(protocol_fee_rate <= FEE_RATE_DENOMINATOR_VALUE);
@@ -51,6 +62,7 @@ pub mod cp_swap {
             trade_fee_rate,
             protocol_fee_rate,
             fund_fee_rate,
+            create_pool_fee,
         )
     }
 
@@ -67,7 +79,7 @@ pub mod cp_swap {
     /// * `new_fund_owner`- The config's new fund owner, be set when `param` is 4
     /// * `param`- The vaule can be 0 | 1 | 2 | 3 | 4, otherwise will report a error
     ///
-    pub fn update_amm_config(ctx: Context<UpdateAmmConfig>, param: u8, value: u32) -> Result<()> {
+    pub fn update_amm_config(ctx: Context<UpdateAmmConfig>, param: u8, value: u64) -> Result<()> {
         instructions::update_amm_config(ctx, param, value)
     }
 

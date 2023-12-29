@@ -44,28 +44,28 @@ pub fn transfer_from_user_to_pool_vault<'a>(
 }
 
 pub fn transfer_from_pool_vault_to_user<'a>(
-    pool_state_loader: &AccountLoader<'a, PoolState>,
+    signer: AccountInfo<'a>,
     from_vault: AccountInfo<'a>,
     to: AccountInfo<'a>,
     mint: AccountInfo<'a>,
     token_program: AccountInfo<'a>,
     amount: u64,
     mint_decimals: u8,
+    signer_seeds: &[&[&[u8]]],
 ) -> Result<()> {
     if amount == 0 {
         return Ok(());
     }
-
     token_2022::transfer_checked(
         CpiContext::new_with_signer(
             token_program.to_account_info(),
             token_2022::TransferChecked {
                 from: from_vault,
                 to,
-                authority: pool_state_loader.to_account_info(),
+                authority: signer,
                 mint,
             },
-            &[&pool_state_loader.load()?.seeds()],
+            signer_seeds,
         ),
         amount,
         mint_decimals,
@@ -74,21 +74,22 @@ pub fn transfer_from_pool_vault_to_user<'a>(
 
 /// Issue a spl_token `MintTo` instruction.
 pub fn token_mint_to<'a>(
-    pool_state_loader: &AccountLoader<'a, PoolState>,
+    signer: AccountInfo<'a>,
     token_program: AccountInfo<'a>,
     mint: AccountInfo<'a>,
     destination: AccountInfo<'a>,
     amount: u64,
+    signer_seeds: &[&[&[u8]]],
 ) -> Result<()> {
     token_2022::mint_to(
         CpiContext::new_with_signer(
             token_program,
             token_2022::MintTo {
                 to: destination,
-                authority: pool_state_loader.to_account_info(),
+                authority: signer,
                 mint,
             },
-            &[&pool_state_loader.load()?.seeds()],
+            signer_seeds,
         ),
         amount,
     )
@@ -100,6 +101,7 @@ pub fn token_burn<'a>(
     mint: AccountInfo<'a>,
     from: AccountInfo<'a>,
     amount: u64,
+    signer_seeds: &[&[&[u8]]],
 ) -> Result<()> {
     token_2022::burn(
         CpiContext::new_with_signer(
@@ -109,7 +111,7 @@ pub fn token_burn<'a>(
                 authority: pool_state_loader.to_account_info(),
                 mint: mint.to_account_info(),
             },
-            &[&pool_state_loader.load()?.seeds()],
+            signer_seeds,
         ),
         amount,
     )
