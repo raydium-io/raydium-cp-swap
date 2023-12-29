@@ -1,0 +1,28 @@
+[toolchain]
+anchor_version = "0.29.0"
+solana_version = "1.17.0"
+
+
+[workspace]
+members = ["programs/cp-swap"]
+
+[features]
+seeds = false
+skip-lint = false
+
+[programs.mainnet]
+token_swap = "CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C"
+
+[programs.devnet]
+token_swap = "CPMDWBwJDtYax9qW7AyRuVC19Cc4L4Vcy4n2BHAbHkCW"
+
+
+[registry]
+url = "https://github.com/raydium-io/raydium-cp-swap"
+
+[provider]
+cluster = "Localnet"
+wallet = "~/.config/solana/id.json"
+
+[scripts]
+test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
