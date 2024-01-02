@@ -28,7 +28,6 @@ pub struct PoolState {
     /// bit0, 1: disable deposit(vaule is 1), 0: normal
     /// bit1, 1: disable withdraw(vaule is 2), 0: normal
     /// bit2, 1: disable swap(vaule is 4), 0: normal
-    /// bit3, 1: disable initialize(vaule is 8), 0: normal
     pub status: u8,
 
     pub lp_mint_decimals: u8,
