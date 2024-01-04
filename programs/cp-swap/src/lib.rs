@@ -131,15 +131,17 @@ pub mod cp_swap {
     /// # Arguments
     ///
     /// * `ctx`- The context of accounts
-    /// * `init_amount_0` - the initial amount to deposit
-    /// * `init_amount_1` - the initial amount to deposit
+    /// * `init_amount_0` - the initial amount_0 to deposit
+    /// * `init_amount_1` - the initial amount_1 to deposit
+    /// * `open_time` - the timestamp allowed for swap
     ///
     pub fn initialize(
         ctx: Context<Initialize>,
         init_amount_0: u64,
         init_amount_1: u64,
+        open_time: u64,
     ) -> Result<()> {
-        instructions::initialize(ctx, init_amount_0, init_amount_1)
+        instructions::initialize(ctx, init_amount_0, init_amount_1, open_time)
     }
 
     /// Creates a pool for the given token pair and the initial price

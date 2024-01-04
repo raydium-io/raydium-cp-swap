@@ -3,6 +3,7 @@ use crate::error::ErrorCode;
 use crate::states::*;
 use crate::utils::token::*;
 use anchor_lang::prelude::*;
+use anchor_lang::solana_program;
 use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 
 use crate::curve::calculator::CurveCalculator;
@@ -72,10 +73,15 @@ pub struct Swap<'info> {
 }
 
 pub fn swap(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u64) -> Result<()> {
+    let block_timestamp = solana_program::clock::Clock::get()?.unix_timestamp as u64;
+
     let pool_state = &mut ctx.accounts.pool_state.load_mut()?;
-    if !pool_state.get_status_by_bit(PoolStatusBitIndex::Swap) {
+    if !pool_state.get_status_by_bit(PoolStatusBitIndex::Swap)
+        || block_timestamp < pool_state.open_time
+    {
         return err!(ErrorCode::NotApproved);
     }
+
     let transfer_fee = get_transfer_fee(&ctx.accounts.input_token_mint, amount_in)?;
     // Take transfer fees into account for actual amount transferred in
     let actual_amount_in = amount_in.saturating_sub(transfer_fee);

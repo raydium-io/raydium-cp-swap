@@ -151,7 +151,12 @@ pub struct Initialize<'info> {
     pub rent: Sysvar<'info, Rent>,
 }
 
-pub fn initialize(ctx: Context<Initialize>, init_amount_0: u64, init_amount_1: u64) -> Result<()> {
+pub fn initialize(
+    ctx: Context<Initialize>,
+    init_amount_0: u64,
+    init_amount_1: u64,
+    open_time: u64,
+) -> Result<()> {
     if !(is_supported_mint(&ctx.accounts.token_0_mint).unwrap()
         && is_supported_mint(&ctx.accounts.token_1_mint).unwrap())
     {
@@ -239,6 +244,7 @@ pub fn initialize(ctx: Context<Initialize>, init_amount_0: u64, init_amount_1: u
     pool_state.initialize(
         ctx.bumps.authority,
         liquidity,
+        open_time,
         ctx.accounts.creator.key(),
         ctx.accounts.amm_config.key(),
         ctx.accounts.token_0_vault.key(),

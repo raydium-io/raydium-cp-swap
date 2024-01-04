@@ -66,16 +66,20 @@ pub struct PoolState {
     pub fund_fees_token_0: u64,
     pub fund_fees_token_1: u64,
 
+    /// The timestamp allowed for swap in the pool.
+    pub open_time: u64,
+
     pub padding: [u64; 32],
 }
 
 impl PoolState {
-    pub const LEN: usize = 8 + 1 * 5 + 9 * 32 + 8 * 5 + 8 * 32;
+    pub const LEN: usize = 8 + 1 * 5 + 9 * 32 + 8 * 6 + 8 * 32;
 
     pub fn initialize(
         &mut self,
         auth_bump: u8,
         lp_supply: u64,
+        open_time: u64,
         pool_creator: Pubkey,
         amm_config: Pubkey,
         token_0_vault: Pubkey,
@@ -103,6 +107,7 @@ impl PoolState {
         self.protocol_fees_token_1 = 0;
         self.fund_fees_token_0 = 0;
         self.fund_fees_token_1 = 0;
+        self.open_time = open_time;
     }
 
     pub fn set_status(&mut self, status: u8) {
