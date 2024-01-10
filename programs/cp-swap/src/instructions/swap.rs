@@ -74,7 +74,7 @@ pub struct Swap<'info> {
 
 pub fn swap(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u64) -> Result<()> {
     let block_timestamp = solana_program::clock::Clock::get()?.unix_timestamp as u64;
-
+    let pool_id = ctx.accounts.pool_state.key();
     let pool_state = &mut ctx.accounts.pool_state.load_mut()?;
     if !pool_state.get_status_by_bit(PoolStatusBitIndex::Swap)
         || block_timestamp < pool_state.open_time
@@ -134,21 +134,24 @@ pub fn swap(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u64) -> Resu
     require_gte!(constant_after, constant_before);
 
     // Re-calculate the source amount swapped based on what the curve says
-    let input_transfer_amount = {
+    let (input_transfer_amount, input_transfer_fee) = {
         let source_amount_swapped = u64::try_from(result.source_amount_swapped).unwrap();
         let transfer_fee =
             get_transfer_inverse_fee(&ctx.accounts.input_token_mint, source_amount_swapped)?;
-        source_amount_swapped.checked_add(transfer_fee).unwrap()
+        (
+            source_amount_swapped.checked_add(transfer_fee).unwrap(),
+            transfer_fee,
+        )
     };
 
-    let output_transfer_amount = {
+    let (output_transfer_amount, output_transfer_fee) = {
         let amount_out = u64::try_from(result.destination_amount_swapped).unwrap();
         let transfer_fee = get_transfer_fee(&ctx.accounts.output_token_mint, amount_out)?;
         let amount_received = amount_out.checked_sub(transfer_fee).unwrap();
         if amount_received < minimum_amount_out {
             return Err(ErrorCode::ExceededSlippage.into());
         }
-        amount_out
+        (amount_out, transfer_fee)
     };
 
     let protocol_fee = u64::try_from(result.protocol_fee).unwrap();
@@ -193,6 +196,16 @@ pub fn swap(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u64) -> Resu
         ctx.accounts.output_token_mint.decimals,
         &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
     )?;
+
+    emit!(SwapEvent {
+        pool_id,
+        input_vault_before: total_input_token_amount,
+        output_vault_before: total_input_token_amount,
+        input_amount: u64::try_from(result.source_amount_swapped).unwrap(),
+        output_amount: u64::try_from(result.destination_amount_swapped).unwrap(),
+        input_transfer_fee,
+        output_transfer_fee,
+    });
 
     Ok(())
 }

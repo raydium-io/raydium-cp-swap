@@ -99,6 +99,7 @@ pub fn withdraw<>(
     minimum_token_1_amount: u64,
 ) -> Result<()> {
     require_gt!(ctx.accounts.lp_mint.supply, 0);
+    let pool_id = ctx.accounts.pool_state.key();
     let pool_state = &mut ctx.accounts.pool_state.load_mut()?;
     if !pool_state.get_status_by_bit(PoolStatusBitIndex::Withdraw) {
         return err!(ErrorCode::NotApproved);
@@ -119,24 +120,26 @@ pub fn withdraw<>(
 
     let token_0_amount = u64::try_from(results.token_0_amount).unwrap();
     let token_0_amount = std::cmp::min(ctx.accounts.token_0_vault.amount, token_0_amount);
-    let receive_token_0_amount = token_0_amount
-        .checked_sub(get_transfer_fee(
+    let (receive_token_0_amount,token_0_transfer_fee) = {
+        let transfer_fee = get_transfer_fee(
             &ctx.accounts.vault_0_mint,
             token_0_amount,
-        )?)
-        .unwrap();
+        )?;
+        (token_0_amount.checked_sub(transfer_fee).unwrap(),transfer_fee)
+    };
     if receive_token_0_amount < minimum_token_0_amount {
         return Err(ErrorCode::ExceededSlippage.into());
     }
 
     let token_1_amount = u64::try_from(results.token_1_amount).unwrap();
     let token_1_amount = std::cmp::min(ctx.accounts.token_1_vault.amount, token_1_amount);
-    let receive_token_1_amount = token_1_amount
-    .checked_sub(get_transfer_fee(
-        &ctx.accounts.vault_1_mint,
-        token_1_amount,
-    )?)
-    .unwrap();
+    let (receive_token_1_amount,token_1_transfer_fee) = {
+        let transfer_fee = get_transfer_fee(
+            &ctx.accounts.vault_1_mint,
+            token_1_amount,
+        )?;
+        (token_1_amount.checked_sub(transfer_fee).unwrap(),transfer_fee)
+    };
     if receive_token_1_amount < minimum_token_1_amount {
         return Err(ErrorCode::ExceededSlippage.into());
     }   
@@ -162,7 +165,7 @@ pub fn withdraw<>(
         } else {
             ctx.accounts.token_program_2022.to_account_info()
         },
-        receive_token_0_amount,
+        token_0_amount,
         ctx.accounts.vault_0_mint.decimals,
         &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]]
     )?;
@@ -177,8 +180,22 @@ pub fn withdraw<>(
         } else {
             ctx.accounts.token_program_2022.to_account_info()
         },
-        receive_token_1_amount,
+        token_1_amount,
         ctx.accounts.vault_1_mint.decimals,
         &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]]
-    )
+    )?;
+
+    emit!(LpChangeEvent {
+        pool_id,
+        lp_amount: lp_token_amount,
+        token_0_vault_before: total_token_0_amount,
+        token_1_vault_before: total_token_1_amount,
+        token_0_amount:receive_token_0_amount,
+        token_1_amount:receive_token_1_amount,
+        token_0_transfer_fee,
+        token_1_transfer_fee,
+        change_type: 1
+    });
+
+    Ok(())
 }
