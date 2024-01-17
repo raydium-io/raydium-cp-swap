@@ -146,7 +146,7 @@ pub fn withdraw<>(
 
     pool_state.lp_supply = pool_state.lp_supply.checked_sub(lp_token_amount).unwrap();
     token_burn(
-        &ctx.accounts.pool_state,
+        ctx.accounts.authority.to_account_info(),
         ctx.accounts.token_program.to_account_info(),
         ctx.accounts.lp_mint.to_account_info(),
         ctx.accounts.owner_lp_token.to_account_info(),
@@ -171,7 +171,7 @@ pub fn withdraw<>(
     )?;
 
     transfer_from_pool_vault_to_user(
-        ctx.accounts.pool_state.to_account_info(),
+        ctx.accounts.authority.to_account_info(),
         ctx.accounts.token_1_vault.to_account_info(),
         ctx.accounts.token_1_account.to_account_info(),
         ctx.accounts.vault_1_mint.to_account_info(),

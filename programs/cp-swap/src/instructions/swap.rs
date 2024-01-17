@@ -1,3 +1,4 @@
+use crate::curve::calculator::CurveCalculator;
 use crate::curve::TradeDirection;
 use crate::error::ErrorCode;
 use crate::states::*;
@@ -6,9 +7,6 @@ use anchor_lang::prelude::*;
 use anchor_lang::solana_program;
 use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 
-use crate::curve::calculator::CurveCalculator;
-/// Memo msg for swap
-pub const SWAP_MEMO_MSG: &'static [u8] = b"raydium_token_swap_memo";
 #[derive(Accounts)]
 pub struct Swap<'info> {
     /// The user performing the swap

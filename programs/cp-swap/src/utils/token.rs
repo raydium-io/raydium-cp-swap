@@ -1,4 +1,3 @@
-use crate::states::PoolState;
 use anchor_lang::prelude::*;
 
 use anchor_spl::{
@@ -17,7 +16,7 @@ use anchor_spl::{
 };
 
 pub fn transfer_from_user_to_pool_vault<'a>(
-    signer: AccountInfo<'a>,
+    authority: AccountInfo<'a>,
     from: AccountInfo<'a>,
     to_vault: AccountInfo<'a>,
     mint: AccountInfo<'a>,
@@ -34,7 +33,7 @@ pub fn transfer_from_user_to_pool_vault<'a>(
             token_2022::TransferChecked {
                 from,
                 to: to_vault,
-                authority: signer,
+                authority,
                 mint,
             },
         ),
@@ -44,7 +43,7 @@ pub fn transfer_from_user_to_pool_vault<'a>(
 }
 
 pub fn transfer_from_pool_vault_to_user<'a>(
-    signer: AccountInfo<'a>,
+    authority: AccountInfo<'a>,
     from_vault: AccountInfo<'a>,
     to: AccountInfo<'a>,
     mint: AccountInfo<'a>,
@@ -62,7 +61,7 @@ pub fn transfer_from_pool_vault_to_user<'a>(
             token_2022::TransferChecked {
                 from: from_vault,
                 to,
-                authority: signer,
+                authority,
                 mint,
             },
             signer_seeds,
@@ -74,7 +73,7 @@ pub fn transfer_from_pool_vault_to_user<'a>(
 
 /// Issue a spl_token `MintTo` instruction.
 pub fn token_mint_to<'a>(
-    signer: AccountInfo<'a>,
+    authority: AccountInfo<'a>,
     token_program: AccountInfo<'a>,
     mint: AccountInfo<'a>,
     destination: AccountInfo<'a>,
@@ -86,7 +85,7 @@ pub fn token_mint_to<'a>(
             token_program,
             token_2022::MintTo {
                 to: destination,
-                authority: signer,
+                authority,
                 mint,
             },
             signer_seeds,
@@ -96,7 +95,7 @@ pub fn token_mint_to<'a>(
 }
 
 pub fn token_burn<'a>(
-    pool_state_loader: &AccountLoader<'a, PoolState>,
+    authority: AccountInfo<'a>,
     token_program: AccountInfo<'a>,
     mint: AccountInfo<'a>,
     from: AccountInfo<'a>,
@@ -107,9 +106,9 @@ pub fn token_burn<'a>(
         CpiContext::new_with_signer(
             token_program.to_account_info(),
             token_2022::Burn {
-                from: from.to_account_info(),
-                authority: pool_state_loader.to_account_info(),
-                mint: mint.to_account_info(),
+                from,
+                authority,
+                mint,
             },
             signer_seeds,
         ),
@@ -173,10 +172,13 @@ pub fn is_supported_mint(mint_account: &InterfaceAccount<Mint>) -> Result<bool> 
     let mint_data = mint_info.try_borrow_data()?;
     let mint = StateWithExtensions::<spl_token_2022::state::Mint>::unpack(&mint_data)?;
     let extensions = mint.get_extension_types()?;
-    if extensions.len() == 0
-        || extensions.len() == 1 && extensions[0] == ExtensionType::TransferFeeConfig
-    {
-        return Ok(true);
+    for e in extensions {
+        if e != ExtensionType::TransferFeeConfig
+            && e != ExtensionType::MetadataPointer
+            && e != ExtensionType::TokenMetadata
+        {
+            return Ok(false);
+        }
     }
-    Ok(false)
+    Ok(true)
 }
