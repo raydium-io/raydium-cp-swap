@@ -4,8 +4,8 @@ use anchor_lang::prelude::*;
 use anchor_spl::token_interface::Mint;
 /// Seed to derive account address and signature
 pub const POOL_SEED: &str = "pool";
-pub const POOL_LP_MINT_SEED: &str = "pool_lp_mint`";
-pub const POOL_VAULT_SEED: &str = "pool_token_valut`";
+pub const POOL_LP_MINT_SEED: &str = "pool_lp_mint";
+pub const POOL_VAULT_SEED: &str = "pool_vault";
 
 pub enum PoolStatusBitIndex {
     Deposit,
