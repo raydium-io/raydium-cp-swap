@@ -1,12 +1,21 @@
+use std::ops::Deref;
+
 use crate::curve::CurveCalculator;
 use crate::error::ErrorCode;
 use crate::states::*;
 use crate::utils::*;
-use anchor_lang::prelude::*;
-use anchor_lang::solana_program::{program::invoke, system_instruction};
-use anchor_spl::associated_token::AssociatedToken;
-use anchor_spl::token::Token;
-use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
+use anchor_lang::{
+    accounts::interface_account::InterfaceAccount,
+    prelude::*,
+    solana_program::{program::invoke, system_instruction},
+};
+use anchor_spl::{
+    associated_token::AssociatedToken,
+    token::Token,
+    token_2022::spl_token_2022,
+    token_interface::{Mint, TokenAccount, TokenInterface},
+};
+
 #[derive(Accounts)]
 pub struct Initialize<'info> {
     /// Address paying to create the pool. Can be anyone
@@ -98,37 +107,29 @@ pub struct Initialize<'info> {
     )]
     pub creator_lp_token: Box<InterfaceAccount<'info, TokenAccount>>,
 
-    /// Token_0 vault for the pool
+    /// CHECK: Token_0 vault for the pool
     #[account(
-        init,
+        mut,
         seeds = [
             POOL_VAULT_SEED.as_bytes(),
             pool_state.key().as_ref(),
             token_0_mint.key().as_ref()
         ],
         bump,
-        payer = creator,
-        token::mint = token_0_mint,
-        token::authority = authority,
-        token::token_program = token_0_program
     )]
-    pub token_0_vault: Box<InterfaceAccount<'info, TokenAccount>>,
+    pub token_0_vault: UncheckedAccount<'info>,
 
-    /// Token_1 vault for the pool
+    /// CHECK: Token_1 vault for the pool
     #[account(
-        init,
+        mut,
         seeds = [
             POOL_VAULT_SEED.as_bytes(),
             pool_state.key().as_ref(),
             token_1_mint.key().as_ref()
         ],
         bump,
-        payer = creator,
-        token::mint = token_1_mint,
-        token::authority = authority,
-        token::token_program = token_1_program
     )]
-    pub token_1_vault: Box<InterfaceAccount<'info, TokenAccount>>,
+    pub token_1_vault: UncheckedAccount<'info>,
 
     /// create pool fee account
     #[account(
@@ -166,6 +167,36 @@ pub fn initialize(
     if ctx.accounts.amm_config.disable_create_pool {
         return err!(ErrorCode::NotApproved);
     }
+    // due to stack/heap limitations, we have to create redundant new accounts ourselves.
+    create_token_account(
+        &ctx.accounts.authority.to_account_info(),
+        &ctx.accounts.creator.to_account_info(),
+        &ctx.accounts.token_0_vault.to_account_info(),
+        &ctx.accounts.token_0_mint.to_account_info(),
+        &ctx.accounts.system_program.to_account_info(),
+        &ctx.accounts.token_0_program.to_account_info(),
+        &[&[
+            POOL_VAULT_SEED.as_bytes(),
+            ctx.accounts.pool_state.key().as_ref(),
+            ctx.accounts.token_0_mint.key().as_ref(),
+            &[ctx.bumps.token_0_vault][..],
+        ][..]],
+    )?;
+
+    create_token_account(
+        &ctx.accounts.authority.to_account_info(),
+        &ctx.accounts.creator.to_account_info(),
+        &ctx.accounts.token_1_vault.to_account_info(),
+        &ctx.accounts.token_1_mint.to_account_info(),
+        &ctx.accounts.system_program.to_account_info(),
+        &ctx.accounts.token_1_program.to_account_info(),
+        &[&[
+            POOL_VAULT_SEED.as_bytes(),
+            ctx.accounts.pool_state.key().as_ref(),
+            ctx.accounts.token_1_mint.key().as_ref(),
+            &[ctx.bumps.token_1_vault][..],
+        ][..]],
+    )?;
 
     let pool_state = &mut ctx.accounts.pool_state.load_init()?;
 
@@ -189,30 +220,49 @@ pub fn initialize(
         ctx.accounts.token_1_mint.decimals,
     )?;
 
-    ctx.accounts.token_0_vault.reload()?;
-    ctx.accounts.token_1_vault.reload()?;
+    let token_0_vault =
+        spl_token_2022::extension::StateWithExtensions::<spl_token_2022::state::Account>::unpack(
+            ctx.accounts
+                .token_0_vault
+                .to_account_info()
+                .try_borrow_data()?
+                .deref(),
+        )?
+        .base;
+    let token_1_vault =
+        spl_token_2022::extension::StateWithExtensions::<spl_token_2022::state::Account>::unpack(
+            ctx.accounts
+                .token_1_vault
+                .to_account_info()
+                .try_borrow_data()?
+                .deref(),
+        )?
+        .base;
 
-    CurveCalculator::validate_supply(
-        ctx.accounts.token_0_vault.amount,
-        ctx.accounts.token_1_vault.amount,
-    )?;
+    CurveCalculator::validate_supply(token_0_vault.amount, token_1_vault.amount)?;
 
-    let liquidity = U128::from(ctx.accounts.token_0_vault.amount)
-        .checked_mul(ctx.accounts.token_1_vault.amount.into())
+    let liquidity = U128::from(token_0_vault.amount)
+        .checked_mul(token_1_vault.amount.into())
         .unwrap()
         .integer_sqrt()
         .as_u64();
     let lock_lp_amount = (10u64)
         .checked_pow(u32::from(ctx.accounts.lp_mint.decimals))
         .unwrap();
-
+    msg!(
+        "liquidity:{}, lock_lp_amount:{}, vault_0_amount:{},vault_1_amount:{}",
+        liquidity,
+        lock_lp_amount,
+        token_0_vault.amount,
+        token_1_vault.amount
+    );
     token::token_mint_to(
-        ctx.accounts.pool_state.to_account_info(),
+        ctx.accounts.authority.to_account_info(),
         ctx.accounts.token_program.to_account_info(),
         ctx.accounts.lp_mint.to_account_info(),
         ctx.accounts.creator_lp_token.to_account_info(),
         liquidity.checked_sub(lock_lp_amount).unwrap(),
-        &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
+        &[&[crate::AUTH_SEED.as_bytes(), &[ctx.bumps.authority]]],
     )?;
 
     // Charge the fee to create a pool

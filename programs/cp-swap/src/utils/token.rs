@@ -1,18 +1,21 @@
 use anchor_lang::prelude::*;
 
 use anchor_spl::{
-    token::Token,
+    token::{Token, TokenAccount},
     token_2022::{
         self,
         spl_token_2022::{
             self,
             extension::{
-                transfer_fee::{TransferFeeConfig, MAX_FEE_BASIS_POINTS},
+                transfer_fee::TransferFeeConfig,
                 ExtensionType, StateWithExtensions,
             },
         },
     },
-    token_interface::{spl_token_2022::extension::BaseStateWithExtensions, Mint},
+    token_interface::{
+        initialize_account3, spl_token_2022::extension::BaseStateWithExtensions,
+        InitializeAccount3, Mint,
+    },
 };
 
 pub fn transfer_from_user_to_pool_vault<'a>(
@@ -129,16 +132,9 @@ pub fn get_transfer_inverse_fee(
     let mint = StateWithExtensions::<spl_token_2022::state::Mint>::unpack(&mint_data)?;
 
     let fee = if let Ok(transfer_fee_config) = mint.get_extension::<TransferFeeConfig>() {
-        let epoch = Clock::get()?.epoch;
-
-        let transfer_fee = transfer_fee_config.get_epoch_fee(epoch);
-        if u16::from(transfer_fee.transfer_fee_basis_points) == MAX_FEE_BASIS_POINTS {
-            u64::from(transfer_fee.maximum_fee)
-        } else {
-            transfer_fee_config
-                .calculate_inverse_epoch_fee(epoch, post_fee_amount)
-                .unwrap()
-        }
+        transfer_fee_config
+            .calculate_inverse_epoch_fee(Clock::get()?.epoch, post_fee_amount)
+            .unwrap()
     } else {
         0
     };
@@ -181,4 +177,51 @@ pub fn is_supported_mint(mint_account: &InterfaceAccount<Mint>) -> Result<bool> 
         }
     }
     Ok(true)
+}
+
+pub fn create_token_account<'a>(
+    authority: &AccountInfo<'a>,
+    payer: &AccountInfo<'a>,
+    token_account: &AccountInfo<'a>,
+    mint_account: &AccountInfo<'a>,
+    system_program: &AccountInfo<'a>,
+    token_program: &AccountInfo<'a>,
+    signer_seeds: &[&[&[u8]]],
+) -> Result<()> {
+    let space = {
+        let mint_info = mint_account.to_account_info();
+        if *mint_info.owner == token_2022::Token2022::id() {
+            let mint_data = mint_info.try_borrow_data()?;
+            let mint_state =
+                StateWithExtensions::<spl_token_2022::state::Mint>::unpack(&mint_data)?;
+            let mint_extensions = mint_state.get_extension_types()?;
+            let required_extensions =
+                ExtensionType::get_required_init_account_extensions(&mint_extensions);
+            ExtensionType::try_calculate_account_len::<spl_token_2022::state::Account>(
+                &required_extensions,
+            )?
+        } else {
+            TokenAccount::LEN
+        }
+    };
+    let lamports = Rent::get()?.minimum_balance(space);
+    let cpi_accounts = anchor_lang::system_program::CreateAccount {
+        from: payer.to_account_info(),
+        to: token_account.to_account_info(),
+    };
+    let cpi_context = CpiContext::new(system_program.to_account_info(), cpi_accounts);
+    anchor_lang::system_program::create_account(
+        cpi_context.with_signer(signer_seeds),
+        lamports,
+        space as u64,
+        token_program.key,
+    )?;
+    initialize_account3(CpiContext::new(
+        token_program.to_account_info(),
+        InitializeAccount3 {
+            account: token_account.to_account_info(),
+            mint: mint_account.to_account_info(),
+            authority: authority.to_account_info(),
+        },
+    ))
 }
