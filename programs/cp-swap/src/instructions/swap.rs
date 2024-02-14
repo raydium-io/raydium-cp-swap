@@ -87,6 +87,7 @@ pub fn swap(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u64) -> Resu
     // Calculate the trade amounts
     let (trade_direction, total_input_token_amount, total_output_token_amount) =
         if ctx.accounts.input_vault.key() == pool_state.token_0_vault {
+            require_keys_eq!(ctx.accounts.output_vault.key(),pool_state.token_1_vault);
             let (total_input_token_amount, total_output_token_amount) = pool_state
                 .vault_amount_without_fee(
                     ctx.accounts.input_vault.amount,
@@ -99,7 +100,8 @@ pub fn swap(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u64) -> Resu
                 total_output_token_amount,
             )
         } else {
-            let (total_input_token_amount, total_output_token_amount) = pool_state
+            require_keys_eq!(ctx.accounts.output_vault.key(),pool_state.token_0_vault);
+            let (total_output_token_amount,total_input_token_amount) = pool_state
                 .vault_amount_without_fee(
                     ctx.accounts.output_vault.amount,
                     ctx.accounts.input_vault.amount,
