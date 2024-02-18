@@ -49,4 +49,20 @@ impl Fees {
             u128::from(FEE_RATE_DENOMINATOR_VALUE),
         )
     }
+
+    pub fn calculate_pre_fee_amount(post_fee_amount: u128, trade_fee_rate: u64) -> Option<u128> {
+        if trade_fee_rate == 0 {
+            Some(post_fee_amount)
+        } else {
+            let numerator =
+                post_fee_amount.checked_mul(u128::from(FEE_RATE_DENOMINATOR_VALUE))?;
+            let denominator =
+                u128::from(FEE_RATE_DENOMINATOR_VALUE).checked_sub(u128::from(trade_fee_rate))?;
+
+            numerator
+            .checked_add(denominator)?
+            .checked_sub(1)?
+            .checked_div(denominator)
+        }
+    }
 }

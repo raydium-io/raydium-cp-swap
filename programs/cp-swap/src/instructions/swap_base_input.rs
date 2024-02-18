@@ -70,7 +70,7 @@ pub struct Swap<'info> {
     pub output_token_mint: Box<InterfaceAccount<'info, Mint>>,
 }
 
-pub fn swap(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u64) -> Result<()> {
+pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u64) -> Result<()> {
     let block_timestamp = solana_program::clock::Clock::get()?.unix_timestamp as u64;
     let pool_id = ctx.accounts.pool_state.key();
     let pool_state = &mut ctx.accounts.pool_state.load_mut()?;
@@ -87,7 +87,7 @@ pub fn swap(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u64) -> Resu
     // Calculate the trade amounts
     let (trade_direction, total_input_token_amount, total_output_token_amount) =
         if ctx.accounts.input_vault.key() == pool_state.token_0_vault {
-            require_keys_eq!(ctx.accounts.output_vault.key(),pool_state.token_1_vault);
+            require_keys_eq!(ctx.accounts.output_vault.key(), pool_state.token_1_vault);
             let (total_input_token_amount, total_output_token_amount) = pool_state
                 .vault_amount_without_fee(
                     ctx.accounts.input_vault.amount,
@@ -100,8 +100,8 @@ pub fn swap(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u64) -> Resu
                 total_output_token_amount,
             )
         } else {
-            require_keys_eq!(ctx.accounts.output_vault.key(),pool_state.token_0_vault);
-            let (total_output_token_amount,total_input_token_amount) = pool_state
+            require_keys_eq!(ctx.accounts.output_vault.key(), pool_state.token_0_vault);
+            let (total_output_token_amount, total_input_token_amount) = pool_state
                 .vault_amount_without_fee(
                     ctx.accounts.output_vault.amount,
                     ctx.accounts.input_vault.amount,
@@ -117,11 +117,10 @@ pub fn swap(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u64) -> Resu
         .checked_mul(u128::from(total_output_token_amount))
         .unwrap();
 
-    let result = CurveCalculator::swap(
+    let result = CurveCalculator::swap_base_input(
         u128::from(actual_amount_in),
         u128::from(total_input_token_amount),
         u128::from(total_output_token_amount),
-        trade_direction,
         ctx.accounts.amm_config.trade_fee_rate,
         ctx.accounts.amm_config.protocol_fee_rate,
         ctx.accounts.amm_config.fund_fee_rate,
@@ -205,6 +204,7 @@ pub fn swap(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u64) -> Resu
         output_amount: u64::try_from(result.destination_amount_swapped).unwrap(),
         input_transfer_fee,
         output_transfer_fee,
+        base_input: true
     });
 
     Ok(())

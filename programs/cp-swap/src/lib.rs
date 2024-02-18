@@ -190,7 +190,7 @@ pub mod cp_swap {
         )
     }
 
-    /// Swap the tokens in the pool
+    /// Swap the tokens in the pool base input amount
     ///
     /// # Arguments
     ///
@@ -198,7 +198,27 @@ pub mod cp_swap {
     /// * `amount_in` -  input amount to transfer, output to DESTINATION is based on the exchange rate
     /// * `minimum_amount_out` -  Minimum amount of output token, prevents excessive slippage
     ///
-    pub fn swap(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u64) -> Result<()> {
-        instructions::swap(ctx, amount_in, minimum_amount_out)
+    pub fn swap_base_input(
+        ctx: Context<Swap>,
+        amount_in: u64,
+        minimum_amount_out: u64,
+    ) -> Result<()> {
+        instructions::swap_base_input(ctx, amount_in, minimum_amount_out)
+    }
+
+    /// Swap the tokens in the pool base output amount
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx`- The context of accounts
+    /// * `amount_in` -  input amount to transfer, output to DESTINATION is based on the exchange rate
+    /// * `minimum_amount_out` -  Minimum amount of output token, prevents excessive slippage
+    ///
+    pub fn swap_base_output(
+        ctx: Context<Swap>,
+        amount_out_less_fee: u64,
+        max_amount_in: u64,
+    ) -> Result<()> {
+        instructions::swap_base_output(ctx, amount_out_less_fee, max_amount_in)
     }
 }

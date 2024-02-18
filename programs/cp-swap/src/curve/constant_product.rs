@@ -2,7 +2,7 @@
 
 use {
     crate::curve::calculator::{
-        map_zero_to_none, RoundDirection, SwapWithoutFeesResult, TradeDirection, TradingTokenResult,
+        map_zero_to_none, RoundDirection, SwapWithoutFeesResult, TradingTokenResult,
     },
     spl_math::checked_ceil_div::CheckedCeilDiv,
 };
@@ -18,17 +18,37 @@ impl ConstantProductCurve {
     /// This is guaranteed to work for all values such that:
     ///  - 1 <= swap_source_amount * swap_destination_amount <= u128::MAX
     ///  - 1 <= source_amount <= u64::MAX
-    pub fn swap_without_fees(
+    pub fn swap_base_input_without_fees(
         source_amount: u128,
         swap_source_amount: u128,
         swap_destination_amount: u128,
-        _trade_direction: TradeDirection,
     ) -> Option<SwapWithoutFeesResult> {
         let invariant = swap_source_amount.checked_mul(swap_destination_amount)?;
 
         let new_swap_source_amount = swap_source_amount.checked_add(source_amount)?;
         let (new_swap_destination_amount, new_swap_source_amount) =
             invariant.checked_ceil_div(new_swap_source_amount)?;
+
+        let source_amount_swapped = new_swap_source_amount.checked_sub(swap_source_amount)?;
+        let destination_amount_swapped =
+            map_zero_to_none(swap_destination_amount.checked_sub(new_swap_destination_amount)?)?;
+
+        Some(SwapWithoutFeesResult {
+            source_amount_swapped,
+            destination_amount_swapped,
+        })
+    }
+
+    pub fn swap_base_output_without_fees(
+        destinsation_amount: u128,
+        swap_source_amount: u128,
+        swap_destination_amount: u128,
+    ) -> Option<SwapWithoutFeesResult> {
+        let invariant = swap_source_amount.checked_mul(swap_destination_amount)?;
+
+        let new_swap_destination_amount = swap_destination_amount.checked_sub(destinsation_amount)?;
+        let (new_swap_source_amount,new_swap_destination_amount) =
+            invariant.checked_ceil_div(new_swap_destination_amount)?;
 
         let source_amount_swapped = new_swap_source_amount.checked_sub(swap_source_amount)?;
         let destination_amount_swapped =
@@ -95,9 +115,10 @@ mod tests {
         crate::curve::calculator::{
             test::{
                 check_curve_value_from_swap, check_pool_value_from_deposit,
-                check_pool_value_from_withdraw, total_and_intermediate,
+                check_pool_value_from_withdraw, total_and_intermediate
             },
             RoundDirection,
+            TradeDirection
         },
         proptest::prelude::*,
     };
@@ -157,11 +178,10 @@ mod tests {
         expected_destination_amount_swapped: u128,
     ) {
         let invariant = swap_source_amount * swap_destination_amount;
-        let result = ConstantProductCurve::swap_without_fees(
+        let result = ConstantProductCurve::swap_base_input_without_fees(
             source_amount,
             swap_source_amount,
             swap_destination_amount,
-            TradeDirection::ZeroForOne,
         )
         .unwrap();
         assert_eq!(result.source_amount_swapped, expected_source_amount_swapped);
@@ -177,11 +197,10 @@ mod tests {
     #[test]
     fn constant_product_swap_rounding() {
         // much too small
-        assert!(ConstantProductCurve::swap_without_fees(
+        assert!(ConstantProductCurve::swap_base_input_without_fees(
             10,
             70_000_000_000,
             4_000_000,
-            TradeDirection::ZeroForOne
         )
         .is_none()); // spot: 10 * 4m / 70b = 0
 

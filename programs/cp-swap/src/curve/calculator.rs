@@ -2,7 +2,6 @@
 
 use anchor_lang::prelude::*;
 use {crate::error::ErrorCode, std::fmt::Debug};
-
 use crate::curve::{constant_product::ConstantProductCurve, fees::Fees};
 
 /// Helper function for mapping to ErrorCode::CalculationFailure
@@ -100,11 +99,10 @@ impl CurveCalculator {
 
     /// Subtract fees and calculate how much destination token will be provided
     /// given an amount of source token.
-    pub fn swap(
+    pub fn swap_base_input(
         source_amount: u128,
         swap_source_amount: u128,
         swap_destination_amount: u128,
-        trade_direction: TradeDirection,
         trade_fee_rate: u64,
         protocol_fee_rate: u64,
         fund_fee_rate: u64,
@@ -119,11 +117,10 @@ impl CurveCalculator {
         let SwapWithoutFeesResult {
             source_amount_swapped,
             destination_amount_swapped,
-        } = ConstantProductCurve::swap_without_fees(
+        } = ConstantProductCurve::swap_base_input_without_fees(
             source_amount_less_fees,
             swap_source_amount,
             swap_destination_amount,
-            trade_direction,
         )?;
 
         let source_amount_swapped = source_amount_swapped.checked_add(trade_fee)?;
@@ -132,6 +129,40 @@ impl CurveCalculator {
             new_swap_destination_amount: swap_destination_amount
                 .checked_sub(destination_amount_swapped)?,
             source_amount_swapped,
+            destination_amount_swapped,
+            trade_fee,
+            protocol_fee,
+            fund_fee,
+        })
+    }
+
+    pub fn swap_base_output(
+        destinsation_amount: u128,
+        swap_source_amount: u128,
+        swap_destination_amount: u128,
+        trade_fee_rate: u64,
+        protocol_fee_rate: u64,
+        fund_fee_rate: u64,
+    ) -> Option<SwapResult> {
+        let SwapWithoutFeesResult {
+            source_amount_swapped,
+            destination_amount_swapped,
+        } = ConstantProductCurve::swap_base_output_without_fees(
+            destinsation_amount,
+            swap_source_amount,
+            swap_destination_amount,
+        )?;
+
+        let source_amount = Fees::calculate_pre_fee_amount( source_amount_swapped, trade_fee_rate).unwrap();
+        let trade_fee = Fees::trading_fee(source_amount, trade_fee_rate)?;
+        let protocol_fee = Fees::protocol_fee(trade_fee, protocol_fee_rate)?;
+        let fund_fee = Fees::fund_fee(trade_fee, fund_fee_rate)?;
+        
+        Some(SwapResult {
+            new_swap_source_amount: swap_source_amount.checked_add(source_amount)?,
+            new_swap_destination_amount: swap_destination_amount
+                .checked_sub(destination_amount_swapped)?,
+            source_amount_swapped:source_amount,
             destination_amount_swapped,
             trade_fee,
             protocol_fee,
@@ -201,11 +232,10 @@ pub mod test {
         swap_destination_amount: u128,
         trade_direction: TradeDirection,
     ) {
-        let results = ConstantProductCurve::swap_without_fees(
+        let results = ConstantProductCurve::swap_base_input_without_fees(
             source_token_amount,
             swap_source_amount,
             swap_destination_amount,
-            trade_direction,
         )
         .unwrap();
 
