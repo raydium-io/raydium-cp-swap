@@ -77,7 +77,10 @@ pub struct Deposit<'info> {
     pub vault_1_mint: Box<InterfaceAccount<'info, Mint>>,
 
     /// Lp token mint
-    #[account(address = pool_state.load()?.lp_mint @ ErrorCode::IncorrectLpMint)]
+    #[account(
+        mut,
+        address = pool_state.load()?.lp_mint @ ErrorCode::IncorrectLpMint)
+    ]
     pub lp_mint: Box<InterfaceAccount<'info, Mint>>,
 }
 
@@ -115,10 +118,6 @@ pub fn deposit(
         )
     };
 
-    if transfer_token_0_amount > maximum_token_0_amount {
-        return Err(ErrorCode::ExceededSlippage.into());
-    }
-
     let token_1_amount = u64::try_from(results.token_1_amount).unwrap();
     let (transfer_token_1_amount, transfer_token_1_fee) = {
         let transfer_fee = get_transfer_inverse_fee(&ctx.accounts.vault_1_mint, token_1_amount)?;
@@ -127,7 +126,22 @@ pub fn deposit(
             transfer_fee,
         )
     };
-    if transfer_token_1_amount > maximum_token_1_amount {
+
+    #[cfg(feature = "enable-log")]
+    msg!(
+        "results.token_0_amount;{}, results.token_1_amount:{},transfer_token_0_amount:{},transfer_token_0_fee:{},
+            transfer_token_1_amount:{},transfer_token_1_fee:{}",
+        results.token_0_amount,
+        results.token_1_amount,
+        transfer_token_0_amount,
+        transfer_token_0_fee,
+        transfer_token_1_amount,
+        transfer_token_1_fee
+    );
+
+    if transfer_token_0_amount > maximum_token_0_amount
+        || transfer_token_1_amount > maximum_token_1_amount
+    {
         return Err(ErrorCode::ExceededSlippage.into());
     }
 

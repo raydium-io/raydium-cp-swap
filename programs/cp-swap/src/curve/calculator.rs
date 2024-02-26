@@ -1,8 +1,8 @@
 //! Swap calculations
 
+use crate::curve::{constant_product::ConstantProductCurve, fees::Fees};
 use anchor_lang::prelude::*;
 use {crate::error::ErrorCode, std::fmt::Debug};
-use crate::curve::{constant_product::ConstantProductCurve, fees::Fees};
 
 /// Helper function for mapping to ErrorCode::CalculationFailure
 pub fn map_zero_to_none(x: u128) -> Option<u128> {
@@ -153,16 +153,17 @@ impl CurveCalculator {
             swap_destination_amount,
         )?;
 
-        let source_amount = Fees::calculate_pre_fee_amount( source_amount_swapped, trade_fee_rate).unwrap();
+        let source_amount =
+            Fees::calculate_pre_fee_amount(source_amount_swapped, trade_fee_rate).unwrap();
         let trade_fee = Fees::trading_fee(source_amount, trade_fee_rate)?;
         let protocol_fee = Fees::protocol_fee(trade_fee, protocol_fee_rate)?;
         let fund_fee = Fees::fund_fee(trade_fee, fund_fee_rate)?;
-        
+
         Some(SwapResult {
             new_swap_source_amount: swap_source_amount.checked_add(source_amount)?,
             new_swap_destination_amount: swap_destination_amount
                 .checked_sub(destination_amount_swapped)?,
-            source_amount_swapped:source_amount,
+            source_amount_swapped: source_amount,
             destination_amount_swapped,
             trade_fee,
             protocol_fee,
@@ -243,7 +244,9 @@ pub mod test {
             TradeDirection::ZeroForOne => (swap_source_amount, swap_destination_amount),
             TradeDirection::OneForZero => (swap_destination_amount, swap_source_amount),
         };
-        let previous_value = normalized_value(swap_token_0_amount, swap_token_1_amount).unwrap();
+        let previous_value = swap_token_0_amount
+            .checked_mul(swap_token_1_amount)
+            .unwrap();
 
         let new_swap_source_amount = swap_source_amount
             .checked_add(results.source_amount_swapped)
@@ -256,16 +259,10 @@ pub mod test {
             TradeDirection::OneForZero => (new_swap_destination_amount, new_swap_source_amount),
         };
 
-        let new_value = normalized_value(swap_token_0_amount, swap_token_1_amount).unwrap();
-        assert!(new_value.greater_than_or_equal(&previous_value));
-
-        let epsilon = 1; // Extremely close!
-        let difference = new_value
-            .checked_sub(&previous_value)
-            .unwrap()
-            .to_imprecise()
+        let new_value = swap_token_0_amount
+            .checked_mul(swap_token_1_amount)
             .unwrap();
-        assert!(difference <= epsilon);
+        assert!(new_value >= previous_value);
     }
 
     /// Test function checking that a deposit never reduces the value of pool

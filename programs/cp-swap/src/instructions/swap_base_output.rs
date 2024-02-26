@@ -69,15 +69,25 @@ pub fn swap_base_output(
     let constant_after = u128::from(result.new_swap_source_amount)
         .checked_mul(u128::from(result.new_swap_destination_amount))
         .unwrap();
+
+    #[cfg(feature = "enable-log")]
+    msg!(
+        "source_amount_swapped:{}, destination_amount_swapped:{},constant_before:{},constant_after:{}",
+        result.source_amount_swapped,
+        result.destination_amount_swapped,
+        constant_before,
+        constant_after
+    );
     require_gte!(constant_after, constant_before);
 
     // Re-calculate the source amount swapped based on what the curve says
     let (input_transfer_amount, input_transfer_fee) = {
         let source_amount_swapped = u64::try_from(result.source_amount_swapped).unwrap();
+        require_gt!(source_amount_swapped, 0);
         let transfer_fee =
             get_transfer_inverse_fee(&ctx.accounts.input_token_mint, source_amount_swapped)?;
         let input_transfer_amount = source_amount_swapped.checked_add(transfer_fee).unwrap();
-        if input_transfer_amount < max_amount_in {
+        if input_transfer_amount > max_amount_in {
             return Err(ErrorCode::ExceededSlippage.into());
         }
         (input_transfer_amount, transfer_fee)
@@ -85,7 +95,6 @@ pub fn swap_base_output(
 
     let (output_transfer_amount, output_transfer_fee) = {
         let destination_amount_swapped = u64::try_from(result.destination_amount_swapped).unwrap();
-        require_gte!(actual_amount_out, destination_amount_swapped);
         let output_transfer_fee =
             get_transfer_inverse_fee(&ctx.accounts.output_token_mint, destination_amount_swapped)?;
         (destination_amount_swapped, output_transfer_fee)

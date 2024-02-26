@@ -7,7 +7,7 @@ use anchor_spl::{
         spl_token_2022::{
             self,
             extension::{
-                transfer_fee::TransferFeeConfig,
+                transfer_fee::{TransferFeeConfig, MAX_FEE_BASIS_POINTS},
                 ExtensionType, StateWithExtensions,
             },
         },
@@ -132,9 +132,16 @@ pub fn get_transfer_inverse_fee(
     let mint = StateWithExtensions::<spl_token_2022::state::Mint>::unpack(&mint_data)?;
 
     let fee = if let Ok(transfer_fee_config) = mint.get_extension::<TransferFeeConfig>() {
-        transfer_fee_config
-            .calculate_inverse_epoch_fee(Clock::get()?.epoch, post_fee_amount)
-            .unwrap()
+        let epoch = Clock::get()?.epoch;
+
+        let transfer_fee = transfer_fee_config.get_epoch_fee(epoch);
+        if u16::from(transfer_fee.transfer_fee_basis_points) == MAX_FEE_BASIS_POINTS {
+            u64::from(transfer_fee.maximum_fee)
+        } else {
+            transfer_fee_config
+                .calculate_inverse_epoch_fee(epoch, post_fee_amount)
+                .unwrap()
+        }
     } else {
         0
     };

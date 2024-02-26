@@ -83,6 +83,7 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
     let transfer_fee = get_transfer_fee(&ctx.accounts.input_token_mint, amount_in)?;
     // Take transfer fees into account for actual amount transferred in
     let actual_amount_in = amount_in.saturating_sub(transfer_fee);
+    require_gt!(actual_amount_in, 0);
 
     // Calculate the trade amounts
     let (trade_direction, total_input_token_amount, total_output_token_amount) =
@@ -130,6 +131,14 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
     let constant_after = u128::from(result.new_swap_source_amount)
         .checked_mul(u128::from(result.new_swap_destination_amount))
         .unwrap();
+    #[cfg(feature = "enable-log")]
+    msg!(
+        "source_amount_swapped:{}, destination_amount_swapped:{},constant_before:{},constant_after:{}",
+        result.source_amount_swapped,
+        result.destination_amount_swapped,
+        constant_before,
+        constant_after
+    );
     require_gte!(constant_after, constant_before);
 
     // Re-calculate the source amount swapped based on what the curve says
@@ -147,6 +156,7 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
         let amount_out = u64::try_from(result.destination_amount_swapped).unwrap();
         let transfer_fee = get_transfer_fee(&ctx.accounts.output_token_mint, amount_out)?;
         let amount_received = amount_out.checked_sub(transfer_fee).unwrap();
+        require_gt!(amount_received, 0);
         if amount_received < minimum_amount_out {
             return Err(ErrorCode::ExceededSlippage.into());
         }

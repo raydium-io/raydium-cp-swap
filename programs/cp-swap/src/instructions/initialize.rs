@@ -49,7 +49,7 @@ pub struct Initialize<'info> {
     )]
     pub pool_state: AccountLoader<'info, PoolState>,
 
-    /// Token_0 mint, the key must grater then token_1 mint.
+    /// Token_0 mint, the key must smaller then token_1 mint.
     #[account(
         constraint = token_0_mint.key() < token_1_mint.key(),
         mint::token_program = token_0_program,

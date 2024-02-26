@@ -1,10 +1,8 @@
 //! The Uniswap invariantConstantProductCurve::
 
-use {
-    crate::curve::calculator::{
-        map_zero_to_none, RoundDirection, SwapWithoutFeesResult, TradingTokenResult,
-    },
-    spl_math::checked_ceil_div::CheckedCeilDiv,
+use crate::{
+    curve::calculator::{RoundDirection, SwapWithoutFeesResult, TradingTokenResult},
+    utils::CheckedCeilDiv,
 };
 
 /// ConstantProductCurve struct implementing CurveCalculator
@@ -23,18 +21,14 @@ impl ConstantProductCurve {
         swap_source_amount: u128,
         swap_destination_amount: u128,
     ) -> Option<SwapWithoutFeesResult> {
-        let invariant = swap_source_amount.checked_mul(swap_destination_amount)?;
-
-        let new_swap_source_amount = swap_source_amount.checked_add(source_amount)?;
-        let (new_swap_destination_amount, new_swap_source_amount) =
-            invariant.checked_ceil_div(new_swap_source_amount)?;
-
-        let source_amount_swapped = new_swap_source_amount.checked_sub(swap_source_amount)?;
-        let destination_amount_swapped =
-            map_zero_to_none(swap_destination_amount.checked_sub(new_swap_destination_amount)?)?;
+        // (x + delta_x) * (y - delta_y) = x * y
+        // delta_y = (delta_x * y) / (x + delta_x)
+        let numerator = source_amount.checked_mul(swap_destination_amount).unwrap();
+        let denominator = swap_source_amount.checked_add(source_amount).unwrap();
+        let destination_amount_swapped = numerator.checked_div(denominator).unwrap();
 
         Some(SwapWithoutFeesResult {
-            source_amount_swapped,
+            source_amount_swapped: source_amount,
             destination_amount_swapped,
         })
     }
@@ -44,19 +38,17 @@ impl ConstantProductCurve {
         swap_source_amount: u128,
         swap_destination_amount: u128,
     ) -> Option<SwapWithoutFeesResult> {
-        let invariant = swap_source_amount.checked_mul(swap_destination_amount)?;
-
-        let new_swap_destination_amount = swap_destination_amount.checked_sub(destinsation_amount)?;
-        let (new_swap_source_amount,new_swap_destination_amount) =
-            invariant.checked_ceil_div(new_swap_destination_amount)?;
-
-        let source_amount_swapped = new_swap_source_amount.checked_sub(swap_source_amount)?;
-        let destination_amount_swapped =
-            map_zero_to_none(swap_destination_amount.checked_sub(new_swap_destination_amount)?)?;
+        // (x + delta_x) * (y - delta_y) = x * y
+        // delta_x = (x * delta_y) / (y - delta_y)
+        let numerator = swap_source_amount.checked_mul(destinsation_amount).unwrap();
+        let denominator = swap_destination_amount
+            .checked_sub(destinsation_amount)
+            .unwrap();
+        let (source_amount_swapped, _) = numerator.checked_ceil_div(denominator).unwrap();
 
         Some(SwapWithoutFeesResult {
             source_amount_swapped,
-            destination_amount_swapped,
+            destination_amount_swapped: destinsation_amount,
         })
     }
 
@@ -115,10 +107,9 @@ mod tests {
         crate::curve::calculator::{
             test::{
                 check_curve_value_from_swap, check_pool_value_from_deposit,
-                check_pool_value_from_withdraw, total_and_intermediate
+                check_pool_value_from_withdraw, total_and_intermediate,
             },
-            RoundDirection,
-            TradeDirection
+            RoundDirection, TradeDirection,
         },
         proptest::prelude::*,
     };
@@ -196,21 +187,13 @@ mod tests {
 
     #[test]
     fn constant_product_swap_rounding() {
-        // much too small
-        assert!(ConstantProductCurve::swap_base_input_without_fees(
-            10,
-            70_000_000_000,
-            4_000_000,
-        )
-        .is_none()); // spot: 10 * 4m / 70b = 0
-
         let tests: &[(u128, u128, u128, u128, u128)] = &[
             // spot: 10 * 70b / ~4m = 174,999.99
             (10, 4_000_000, 70_000_000_000, 10, 174_999),
             // spot: 20 * 1 / 3.000 = 6.6667 (source can be 18 to get 6 dest.)
-            (20, 30_000 - 20, 10_000, 18, 6),
+            (20, 30_000 - 20, 10_000, 20, 6),
             // spot: 19 * 1 / 2.999 = 6.3334 (source can be 18 to get 6 dest.)
-            (19, 30_000 - 20, 10_000, 18, 6),
+            (19, 30_000 - 20, 10_000, 19, 6),
             // spot: 18 * 1 / 2.999 = 6.0001
             (18, 30_000 - 20, 10_000, 18, 6),
             // spot: 10 * 3 / 2.0010 = 14.99
@@ -220,11 +203,11 @@ mod tests {
             // spot: 10 * 3 / 2.0000 = 15
             (10, 20_000 - 10, 30_000, 10, 15),
             // spot: 100 * 3 / 6.001 = 49.99 (source can be 99 to get 49 dest.)
-            (100, 60_000, 30_000, 99, 49),
+            (100, 60_000, 30_000, 100, 49),
             // spot: 99 * 3 / 6.001 = 49.49
             (99, 60_000, 30_000, 99, 49),
             // spot: 98 * 3 / 6.001 = 48.99 (source can be 97 to get 48 dest.)
-            (98, 60_000, 30_000, 97, 48),
+            (98, 60_000, 30_000, 98, 48),
         ];
         for (
             source_amount,

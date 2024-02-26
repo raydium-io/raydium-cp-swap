@@ -58,8 +58,8 @@ fn set_new_protocol_owner(amm_config: &mut Account<AmmConfig>, new_owner: Pubkey
     require_keys_neq!(new_owner, Pubkey::default());
     #[cfg(feature = "enable-log")]
     msg!(
-        "amm_config, old_owner:{}, new_owner:{}",
-        amm_config.owner.to_string(),
+        "amm_config, old_protocol_owner:{}, new_owner:{}",
+        amm_config.protocol_owner.to_string(),
         new_owner.key().to_string()
     );
     amm_config.protocol_owner = new_owner;

@@ -68,20 +68,23 @@ pub struct Withdraw<'info> {
     /// Token program 2022
     pub token_program_2022: Program<'info, Token2022>,
 
-    /// The mint of token_0 vault 
+    /// The mint of token_0 vault
     #[account(
         address = token_0_vault.mint
     )]
     pub vault_0_mint: Box<InterfaceAccount<'info, Mint>>,
 
-    /// The mint of token_1 vault 
+    /// The mint of token_1 vault
     #[account(
         address = token_1_vault.mint
     )]
     pub vault_1_mint: Box<InterfaceAccount<'info, Mint>>,
 
     /// Pool lp token mint
-    #[account(address = pool_state.load()?.lp_mint @ ErrorCode::IncorrectLpMint)]
+    #[account(
+        mut,
+        address = pool_state.load()?.lp_mint @ ErrorCode::IncorrectLpMint)
+    ]
     pub lp_mint: Box<InterfaceAccount<'info, Mint>>,
 
     /// memo program
@@ -92,8 +95,8 @@ pub struct Withdraw<'info> {
     pub memo_program: UncheckedAccount<'info>,
 }
 
-pub fn withdraw<>(
-    ctx: Context< Withdraw>,
+pub fn withdraw(
+    ctx: Context<Withdraw>,
     lp_token_amount: u64,
     minimum_token_0_amount: u64,
     minimum_token_1_amount: u64,
@@ -104,56 +107,66 @@ pub fn withdraw<>(
     if !pool_state.get_status_by_bit(PoolStatusBitIndex::Withdraw) {
         return err!(ErrorCode::NotApproved);
     }
-    let (total_token_0_amount, total_token_1_amount) =
-        pool_state.vault_amount_without_fee(
-            ctx.accounts.token_0_vault.amount,
-            ctx.accounts.token_1_vault.amount,
-        );
+    let (total_token_0_amount, total_token_1_amount) = pool_state.vault_amount_without_fee(
+        ctx.accounts.token_0_vault.amount,
+        ctx.accounts.token_1_vault.amount,
+    );
     let results = CurveCalculator::lp_tokens_to_trading_tokens(
         u128::from(lp_token_amount),
-         u128::from(pool_state.lp_supply),
-         u128::from(total_token_0_amount),
-         u128::from(total_token_1_amount),
+        u128::from(pool_state.lp_supply),
+        u128::from(total_token_0_amount),
+        u128::from(total_token_1_amount),
         RoundDirection::Floor,
     )
     .ok_or(ErrorCode::ZeroTradingTokens)?;
 
     let token_0_amount = u64::try_from(results.token_0_amount).unwrap();
     let token_0_amount = std::cmp::min(ctx.accounts.token_0_vault.amount, token_0_amount);
-    let (receive_token_0_amount,token_0_transfer_fee) = {
-        let transfer_fee = get_transfer_fee(
-            &ctx.accounts.vault_0_mint,
-            token_0_amount,
-        )?;
-        (token_0_amount.checked_sub(transfer_fee).unwrap(),transfer_fee)
+    let (receive_token_0_amount, token_0_transfer_fee) = {
+        let transfer_fee = get_transfer_fee(&ctx.accounts.vault_0_mint, token_0_amount)?;
+        (
+            token_0_amount.checked_sub(transfer_fee).unwrap(),
+            transfer_fee,
+        )
     };
-    if receive_token_0_amount < minimum_token_0_amount {
-        return Err(ErrorCode::ExceededSlippage.into());
-    }
 
     let token_1_amount = u64::try_from(results.token_1_amount).unwrap();
     let token_1_amount = std::cmp::min(ctx.accounts.token_1_vault.amount, token_1_amount);
-    let (receive_token_1_amount,token_1_transfer_fee) = {
-        let transfer_fee = get_transfer_fee(
-            &ctx.accounts.vault_1_mint,
-            token_1_amount,
-        )?;
-        (token_1_amount.checked_sub(transfer_fee).unwrap(),transfer_fee)
+    let (receive_token_1_amount, token_1_transfer_fee) = {
+        let transfer_fee = get_transfer_fee(&ctx.accounts.vault_1_mint, token_1_amount)?;
+        (
+            token_1_amount.checked_sub(transfer_fee).unwrap(),
+            transfer_fee,
+        )
     };
-    if receive_token_1_amount < minimum_token_1_amount {
+
+    #[cfg(feature = "enable-log")]
+    msg!(
+        "results.token_0_amount;{}, results.token_1_amount:{},receive_token_0_amount:{},token_0_transfer_fee:{},
+            receive_token_1_amount:{},token_1_transfer_fee:{}",
+        results.token_0_amount,
+        results.token_1_amount,
+        receive_token_0_amount,
+        token_0_transfer_fee,
+        receive_token_1_amount,
+        token_1_transfer_fee
+    );
+
+    if receive_token_0_amount < minimum_token_0_amount
+        || receive_token_1_amount < minimum_token_1_amount
+    {
         return Err(ErrorCode::ExceededSlippage.into());
-    }   
+    }
 
     pool_state.lp_supply = pool_state.lp_supply.checked_sub(lp_token_amount).unwrap();
     token_burn(
-        ctx.accounts.authority.to_account_info(),
+        ctx.accounts.owner.to_account_info(),
         ctx.accounts.token_program.to_account_info(),
         ctx.accounts.lp_mint.to_account_info(),
         ctx.accounts.owner_lp_token.to_account_info(),
         lp_token_amount,
         &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
     )?;
-  
 
     transfer_from_pool_vault_to_user(
         ctx.accounts.authority.to_account_info(),
@@ -167,7 +180,7 @@ pub fn withdraw<>(
         },
         token_0_amount,
         ctx.accounts.vault_0_mint.decimals,
-        &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]]
+        &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
     )?;
 
     transfer_from_pool_vault_to_user(
@@ -182,7 +195,7 @@ pub fn withdraw<>(
         },
         token_1_amount,
         ctx.accounts.vault_1_mint.decimals,
-        &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]]
+        &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
     )?;
 
     emit!(LpChangeEvent {
@@ -190,8 +203,8 @@ pub fn withdraw<>(
         lp_amount: lp_token_amount,
         token_0_vault_before: total_token_0_amount,
         token_1_vault_before: total_token_1_amount,
-        token_0_amount:receive_token_0_amount,
-        token_1_amount:receive_token_1_amount,
+        token_0_amount: receive_token_0_amount,
+        token_1_amount: receive_token_1_amount,
         token_0_transfer_fee,
         token_1_transfer_fee,
         change_type: 1
