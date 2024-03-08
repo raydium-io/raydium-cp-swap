@@ -123,7 +123,7 @@ pub fn withdraw(
     let token_0_amount = u64::try_from(results.token_0_amount).unwrap();
     let token_0_amount = std::cmp::min(ctx.accounts.token_0_vault.amount, token_0_amount);
     let (receive_token_0_amount, token_0_transfer_fee) = {
-        let transfer_fee = get_transfer_fee(&ctx.accounts.vault_0_mint, token_0_amount)?;
+        let transfer_fee = get_transfer_fee(&ctx.accounts.vault_0_mint.to_account_info(), token_0_amount)?;
         (
             token_0_amount.checked_sub(transfer_fee).unwrap(),
             transfer_fee,
@@ -133,7 +133,7 @@ pub fn withdraw(
     let token_1_amount = u64::try_from(results.token_1_amount).unwrap();
     let token_1_amount = std::cmp::min(ctx.accounts.token_1_vault.amount, token_1_amount);
     let (receive_token_1_amount, token_1_transfer_fee) = {
-        let transfer_fee = get_transfer_fee(&ctx.accounts.vault_1_mint, token_1_amount)?;
+        let transfer_fee = get_transfer_fee(&ctx.accounts.vault_1_mint.to_account_info(), token_1_amount)?;
         (
             token_1_amount.checked_sub(transfer_fee).unwrap(),
             transfer_fee,

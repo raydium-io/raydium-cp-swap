@@ -80,7 +80,8 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
         return err!(ErrorCode::NotApproved);
     }
 
-    let transfer_fee = get_transfer_fee(&ctx.accounts.input_token_mint, amount_in)?;
+    let transfer_fee =
+        get_transfer_fee(&ctx.accounts.input_token_mint.to_account_info(), amount_in)?;
     // Take transfer fees into account for actual amount transferred in
     let actual_amount_in = amount_in.saturating_sub(transfer_fee);
     require_gt!(actual_amount_in, 0);
@@ -144,8 +145,10 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
     // Re-calculate the source amount swapped based on what the curve says
     let (input_transfer_amount, input_transfer_fee) = {
         let source_amount_swapped = u64::try_from(result.source_amount_swapped).unwrap();
-        let transfer_fee =
-            get_transfer_inverse_fee(&ctx.accounts.input_token_mint, source_amount_swapped)?;
+        let transfer_fee = get_transfer_inverse_fee(
+            &ctx.accounts.input_token_mint.to_account_info(),
+            source_amount_swapped,
+        )?;
         (
             source_amount_swapped.checked_add(transfer_fee).unwrap(),
             transfer_fee,
@@ -154,7 +157,10 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
 
     let (output_transfer_amount, output_transfer_fee) = {
         let amount_out = u64::try_from(result.destination_amount_swapped).unwrap();
-        let transfer_fee = get_transfer_fee(&ctx.accounts.output_token_mint, amount_out)?;
+        let transfer_fee = get_transfer_fee(
+            &ctx.accounts.output_token_mint.to_account_info(),
+            amount_out,
+        )?;
         let amount_received = amount_out.checked_sub(transfer_fee).unwrap();
         require_gt!(amount_received, 0);
         if amount_received < minimum_amount_out {

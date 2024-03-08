@@ -111,7 +111,8 @@ pub fn deposit(
 
     let token_0_amount = u64::try_from(results.token_0_amount).unwrap();
     let (transfer_token_0_amount, transfer_token_0_fee) = {
-        let transfer_fee = get_transfer_inverse_fee(&ctx.accounts.vault_0_mint, token_0_amount)?;
+        let transfer_fee =
+            get_transfer_inverse_fee(&ctx.accounts.vault_0_mint.to_account_info(), token_0_amount)?;
         (
             token_0_amount.checked_add(transfer_fee).unwrap(),
             transfer_fee,
@@ -120,7 +121,8 @@ pub fn deposit(
 
     let token_1_amount = u64::try_from(results.token_1_amount).unwrap();
     let (transfer_token_1_amount, transfer_token_1_fee) = {
-        let transfer_fee = get_transfer_inverse_fee(&ctx.accounts.vault_1_mint, token_1_amount)?;
+        let transfer_fee =
+            get_transfer_inverse_fee(&ctx.accounts.vault_1_mint.to_account_info(), token_1_amount)?;
         (
             token_1_amount.checked_add(transfer_fee).unwrap(),
             transfer_fee,

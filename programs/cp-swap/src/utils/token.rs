@@ -120,11 +120,7 @@ pub fn token_burn<'a>(
 }
 
 /// Calculate the fee for output amount
-pub fn get_transfer_inverse_fee(
-    mint_account: &InterfaceAccount<Mint>,
-    post_fee_amount: u64,
-) -> Result<u64> {
-    let mint_info = mint_account.to_account_info();
+pub fn get_transfer_inverse_fee(mint_info: &AccountInfo, post_fee_amount: u64) -> Result<u64> {
     if *mint_info.owner == Token::id() {
         return Ok(0);
     }
@@ -149,8 +145,7 @@ pub fn get_transfer_inverse_fee(
 }
 
 /// Calculate the fee for input amount
-pub fn get_transfer_fee(mint_account: &InterfaceAccount<Mint>, pre_fee_amount: u64) -> Result<u64> {
-    let mint_info = mint_account.to_account_info();
+pub fn get_transfer_fee(mint_info: &AccountInfo, pre_fee_amount: u64) -> Result<u64> {
     if *mint_info.owner == Token::id() {
         return Ok(0);
     }

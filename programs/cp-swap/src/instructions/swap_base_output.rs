@@ -19,8 +19,10 @@ pub fn swap_base_output(
     {
         return err!(ErrorCode::NotApproved);
     }
-    let out_transfer_fee =
-        get_transfer_inverse_fee(&ctx.accounts.output_token_mint, amount_out_less_fee)?;
+    let out_transfer_fee = get_transfer_inverse_fee(
+        &ctx.accounts.output_token_mint.to_account_info(),
+        amount_out_less_fee,
+    )?;
     let actual_amount_out = amount_out_less_fee.checked_add(out_transfer_fee).unwrap();
 
     // Calculate the trade amounts
@@ -84,8 +86,10 @@ pub fn swap_base_output(
     let (input_transfer_amount, input_transfer_fee) = {
         let source_amount_swapped = u64::try_from(result.source_amount_swapped).unwrap();
         require_gt!(source_amount_swapped, 0);
-        let transfer_fee =
-            get_transfer_inverse_fee(&ctx.accounts.input_token_mint, source_amount_swapped)?;
+        let transfer_fee = get_transfer_inverse_fee(
+            &ctx.accounts.input_token_mint.to_account_info(),
+            source_amount_swapped,
+        )?;
         let input_transfer_amount = source_amount_swapped.checked_add(transfer_fee).unwrap();
         if input_transfer_amount > max_amount_in {
             return Err(ErrorCode::ExceededSlippage.into());
@@ -95,8 +99,10 @@ pub fn swap_base_output(
 
     let (output_transfer_amount, output_transfer_fee) = {
         let destination_amount_swapped = u64::try_from(result.destination_amount_swapped).unwrap();
-        let output_transfer_fee =
-            get_transfer_inverse_fee(&ctx.accounts.output_token_mint, destination_amount_swapped)?;
+        let output_transfer_fee = get_transfer_inverse_fee(
+            &ctx.accounts.output_token_mint.to_account_info(),
+            destination_amount_swapped,
+        )?;
         (destination_amount_swapped, output_transfer_fee)
     };
 
