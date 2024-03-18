@@ -606,7 +606,7 @@ export async function swap_base_output(
   );
 
   const tx = await program.methods
-    .swapBaseOutput(amount_out_less_fee, max_amount_in)
+    .swapBaseOutput(max_amount_in, amount_out_less_fee)
     .accounts({
       payer: owner.publicKey,
       authority: auth,

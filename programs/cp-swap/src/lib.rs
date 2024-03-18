@@ -211,14 +211,10 @@ pub mod cp_swap {
     /// # Arguments
     ///
     /// * `ctx`- The context of accounts
-    /// * `amount_in` -  input amount to transfer, output to DESTINATION is based on the exchange rate
-    /// * `minimum_amount_out` -  Minimum amount of output token, prevents excessive slippage
+    /// * `max_amount_in` -  input amount prevents excessive slippage
+    /// * `amount_out` -  amount of output token
     ///
-    pub fn swap_base_output(
-        ctx: Context<Swap>,
-        amount_out_less_fee: u64,
-        max_amount_in: u64,
-    ) -> Result<()> {
-        instructions::swap_base_output(ctx, amount_out_less_fee, max_amount_in)
+    pub fn swap_base_output(ctx: Context<Swap>, max_amount_in: u64, amount_out: u64) -> Result<()> {
+        instructions::swap_base_output(ctx, max_amount_in, amount_out)
     }
 }

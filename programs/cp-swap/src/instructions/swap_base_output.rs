@@ -8,8 +8,8 @@ use anchor_lang::solana_program;
 
 pub fn swap_base_output(
     ctx: Context<Swap>,
-    amount_out_less_fee: u64,
     max_amount_in: u64,
+    amount_out_less_fee: u64,
 ) -> Result<()> {
     let block_timestamp = solana_program::clock::Clock::get()?.unix_timestamp as u64;
     let pool_id = ctx.accounts.pool_state.key();
