@@ -1,5 +1,5 @@
+use crate::error::ErrorCode;
 use anchor_lang::prelude::*;
-
 use anchor_spl::{
     token::{Token, TokenAccount},
     token_2022::{
@@ -123,6 +123,9 @@ pub fn token_burn<'a>(
 pub fn get_transfer_inverse_fee(mint_info: &AccountInfo, post_fee_amount: u64) -> Result<u64> {
     if *mint_info.owner == Token::id() {
         return Ok(0);
+    }
+    if post_fee_amount == 0 {
+        return err!(ErrorCode::InvalidInput);
     }
     let mint_data = mint_info.try_borrow_data()?;
     let mint = StateWithExtensions::<spl_token_2022::state::Mint>::unpack(&mint_data)?;

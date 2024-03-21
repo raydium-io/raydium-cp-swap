@@ -88,8 +88,9 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
 
     // Calculate the trade amounts
     let (trade_direction, total_input_token_amount, total_output_token_amount) =
-        if ctx.accounts.input_vault.key() == pool_state.token_0_vault {
-            require_keys_eq!(ctx.accounts.output_vault.key(), pool_state.token_1_vault);
+        if ctx.accounts.input_vault.key() == pool_state.token_0_vault
+            && ctx.accounts.output_vault.key() == pool_state.token_1_vault
+        {
             let (total_input_token_amount, total_output_token_amount) = pool_state
                 .vault_amount_without_fee(
                     ctx.accounts.input_vault.amount,
@@ -101,8 +102,9 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
                 total_input_token_amount,
                 total_output_token_amount,
             )
-        } else {
-            require_keys_eq!(ctx.accounts.output_vault.key(), pool_state.token_0_vault);
+        } else if ctx.accounts.input_vault.key() == pool_state.token_1_vault
+            && ctx.accounts.output_vault.key() == pool_state.token_0_vault
+        {
             let (total_output_token_amount, total_input_token_amount) = pool_state
                 .vault_amount_without_fee(
                     ctx.accounts.output_vault.amount,
@@ -114,6 +116,8 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
                 total_input_token_amount,
                 total_output_token_amount,
             )
+        } else {
+            return err!(ErrorCode::InvalidVault);
         };
     let constant_before = u128::from(total_input_token_amount)
         .checked_mul(u128::from(total_output_token_amount))
@@ -143,17 +147,20 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
     require_gte!(constant_after, constant_before);
 
     // Re-calculate the source amount swapped based on what the curve says
-    let (input_transfer_amount, input_transfer_fee) = {
-        let source_amount_swapped = u64::try_from(result.source_amount_swapped).unwrap();
-        let transfer_fee = get_transfer_inverse_fee(
-            &ctx.accounts.input_token_mint.to_account_info(),
-            source_amount_swapped,
-        )?;
-        (
-            source_amount_swapped.checked_add(transfer_fee).unwrap(),
-            transfer_fee,
-        )
-    };
+    let (input_transfer_amount, input_transfer_fee) =
+        if u64::try_from(result.source_amount_swapped).unwrap() != actual_amount_in {
+            let source_amount_swapped = u64::try_from(result.source_amount_swapped).unwrap();
+            let transfer_fee = get_transfer_inverse_fee(
+                &ctx.accounts.input_token_mint.to_account_info(),
+                source_amount_swapped,
+            )?;
+            (
+                source_amount_swapped.checked_add(transfer_fee).unwrap(),
+                transfer_fee,
+            )
+        } else {
+            (amount_in, transfer_fee)
+        };
 
     let (output_transfer_amount, output_transfer_fee) = {
         let amount_out = u64::try_from(result.destination_amount_swapped).unwrap();

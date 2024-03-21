@@ -24,7 +24,8 @@ pub enum ErrorCode {
     /// Given pool token amount results in zero trading tokens
     #[msg("Given pool token amount results in zero trading tokens")]
     ZeroTradingTokens,
-
     #[msg("Not support token_2022 mint extension")]
     NotSupportMint,
+    #[msg("invaild vault")]
+    InvalidVault,
 }

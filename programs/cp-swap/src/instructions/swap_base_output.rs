@@ -27,8 +27,9 @@ pub fn swap_base_output(
 
     // Calculate the trade amounts
     let (trade_direction, total_input_token_amount, total_output_token_amount) =
-        if ctx.accounts.input_vault.key() == pool_state.token_0_vault {
-            require_keys_eq!(ctx.accounts.output_vault.key(), pool_state.token_1_vault);
+        if ctx.accounts.input_vault.key() == pool_state.token_0_vault
+            && ctx.accounts.output_vault.key() == pool_state.token_1_vault
+        {
             let (total_input_token_amount, total_output_token_amount) = pool_state
                 .vault_amount_without_fee(
                     ctx.accounts.input_vault.amount,
@@ -40,8 +41,9 @@ pub fn swap_base_output(
                 total_input_token_amount,
                 total_output_token_amount,
             )
-        } else {
-            require_keys_eq!(ctx.accounts.output_vault.key(), pool_state.token_0_vault);
+        } else if ctx.accounts.input_vault.key() == pool_state.token_1_vault
+            && ctx.accounts.output_vault.key() == pool_state.token_0_vault
+        {
             let (total_output_token_amount, total_input_token_amount) = pool_state
                 .vault_amount_without_fee(
                     ctx.accounts.output_vault.amount,
@@ -53,6 +55,8 @@ pub fn swap_base_output(
                 total_input_token_amount,
                 total_output_token_amount,
             )
+        } else {
+            return err!(ErrorCode::InvalidVault);
         };
     let constant_before = u128::from(total_input_token_amount)
         .checked_mul(u128::from(total_output_token_amount))
@@ -97,14 +101,18 @@ pub fn swap_base_output(
         (input_transfer_amount, transfer_fee)
     };
 
-    let (output_transfer_amount, output_transfer_fee) = {
-        let destination_amount_swapped = u64::try_from(result.destination_amount_swapped).unwrap();
-        let output_transfer_fee = get_transfer_inverse_fee(
-            &ctx.accounts.output_token_mint.to_account_info(),
-            destination_amount_swapped,
-        )?;
-        (destination_amount_swapped, output_transfer_fee)
-    };
+    let (output_transfer_amount, output_transfer_fee) =
+        if u64::try_from(result.destination_amount_swapped).unwrap() != actual_amount_out {
+            let destination_amount_swapped =
+                u64::try_from(result.destination_amount_swapped).unwrap();
+            let output_transfer_fee = get_transfer_inverse_fee(
+                &ctx.accounts.output_token_mint.to_account_info(),
+                destination_amount_swapped,
+            )?;
+            (destination_amount_swapped, output_transfer_fee)
+        } else {
+            (actual_amount_out, out_transfer_fee)
+        };
 
     let protocol_fee = u64::try_from(result.protocol_fee).unwrap();
     let fund_fee = u64::try_from(result.fund_fee).unwrap();
