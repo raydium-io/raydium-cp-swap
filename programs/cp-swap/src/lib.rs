@@ -8,6 +8,19 @@ use crate::curve::fees::FEE_RATE_DENOMINATOR_VALUE;
 use anchor_lang::prelude::*;
 use instructions::*;
 
+use solana_security_txt::security_txt;
+
+#[cfg(not(feature = "no-entrypoint"))]
+security_txt! {
+    name: "raydium-cp-swap",
+    project_url: "https://raydium.io",
+    contacts: "link:https://immunefi.com/bounty/raydium",
+    policy: "https://immunefi.com/bounty/raydium",
+    source_code: "https://github.com/raydium-io/raydium-cp-swap",
+    preferred_languages: "en",
+    auditors: "https://github.com/raydium-io/raydium-docs/blob/master/audit/MadShield%20Q1%202024/raydium-cp-swap-v-1.0.0.pdf"
+}
+
 #[cfg(feature = "devnet")]
 declare_id!("CPMDWBwJDtYax9qW7AyRuVC19Cc4L4Vcy4n2BHAbHkCW");
 #[cfg(not(feature = "devnet"))]
