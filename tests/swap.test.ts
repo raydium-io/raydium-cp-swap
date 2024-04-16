@@ -1,6 +1,6 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program, BN } from "@coral-xyz/anchor";
-import { CpSwap } from "../target/types/cp_swap";
+import { RaydiumCpSwap } from "../target/types/raydium_cp_swap";
 import { setupSwapTest, swap_base_input, swap_base_output } from "./utils";
 import { assert } from "chai";
 import { getAccount, getAssociatedTokenAddressSync } from "@solana/spl-token";
@@ -9,7 +9,7 @@ describe("swap test", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
   const owner = anchor.Wallet.local().payer;
 
-  const program = anchor.workspace.CpSwap as Program<CpSwap>;
+  const program = anchor.workspace.RaydiumCpSwap as Program<RaydiumCpSwap>;
 
   const confirmOptions = {
     skipPreflight: true,

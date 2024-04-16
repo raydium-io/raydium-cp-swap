@@ -1,6 +1,6 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program, BN } from "@coral-xyz/anchor";
-import { CpSwap } from "../target/types/cp_swap";
+import { RaydiumCpSwap } from "../target/types/raydium_cp_swap";
 
 import { getAccount, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { setupInitializeTest, initialize, calculateFee } from "./utils";
@@ -11,7 +11,7 @@ describe("initialize test", () => {
   const owner = anchor.Wallet.local().payer;
   console.log("owner: ", owner.publicKey.toString());
 
-  const program = anchor.workspace.CpSwap as Program<CpSwap>;
+  const program = anchor.workspace.RaydiumCpSwap as Program<RaydiumCpSwap>;
 
   const confirmOptions = {
     skipPreflight: true,

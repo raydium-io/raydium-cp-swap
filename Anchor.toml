@@ -11,7 +11,7 @@ seeds = false
 skip-lint = false
 
 [programs.Localnet]
-cp_swap = "CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C"
+raydium_cp_swap = "CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C"
 
 
 [registry]
@@ -32,3 +32,6 @@ url = "https://api.mainnet-beta.solana.com"
 
 [[test.validator.clone]]
 address = "DNXgeM9EiiaAbaWvwjHj9fQQLAX5ZsfHyvmYUNRAdNC8"
+
+[[test.validator.clone]]
+address = "D4FPEruKEHrG5TenZ2mpDGEfu1iUvTiqBxvpU8HLBvC2"
