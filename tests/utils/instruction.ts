@@ -1,5 +1,5 @@
 import { Program, BN } from "@coral-xyz/anchor";
-import { CpSwap } from "../../target/types/cp_swap";
+import { RaydiumCpSwap } from "../../target/types/raydium_cp_swap";
 import {
   Connection,
   ConfirmOptions,
@@ -28,7 +28,7 @@ import {
 import { ASSOCIATED_PROGRAM_ID } from "@coral-xyz/anchor/dist/cjs/utils/token";
 
 export async function setupInitializeTest(
-  program: Program<CpSwap>,
+  program: Program<RaydiumCpSwap>,
   connection: Connection,
   owner: Signer,
   config: {
@@ -72,7 +72,7 @@ export async function setupInitializeTest(
 }
 
 export async function setupDepositTest(
-  program: Program<CpSwap>,
+  program: Program<RaydiumCpSwap>,
   connection: Connection,
   owner: Signer,
   config: {
@@ -151,7 +151,7 @@ export async function setupDepositTest(
 }
 
 export async function setupSwapTest(
-  program: Program<CpSwap>,
+  program: Program<RaydiumCpSwap>,
   connection: Connection,
   owner: Signer,
   config: {
@@ -215,7 +215,7 @@ export async function setupSwapTest(
 }
 
 export async function createAmmConfig(
-  program: Program<CpSwap>,
+  program: Program<RaydiumCpSwap>,
   connection: Connection,
   owner: Signer,
   config_index: number,
@@ -254,7 +254,7 @@ export async function createAmmConfig(
 }
 
 export async function initialize(
-  program: Program<CpSwap>,
+  program: Program<RaydiumCpSwap>,
   creator: Signer,
   configAddress: PublicKey,
   token0: PublicKey,
@@ -338,7 +338,7 @@ export async function initialize(
 }
 
 export async function deposit(
-  program: Program<CpSwap>,
+  program: Program<RaydiumCpSwap>,
   owner: Signer,
   configAddress: PublicKey,
   token0: PublicKey,
@@ -416,7 +416,7 @@ export async function deposit(
 }
 
 export async function withdraw(
-  program: Program<CpSwap>,
+  program: Program<RaydiumCpSwap>,
   owner: Signer,
   configAddress: PublicKey,
   token0: PublicKey,
@@ -497,7 +497,7 @@ export async function withdraw(
 }
 
 export async function swap_base_input(
-  program: Program<CpSwap>,
+  program: Program<RaydiumCpSwap>,
   owner: Signer,
   configAddress: PublicKey,
   inputToken: PublicKey,
@@ -562,7 +562,7 @@ export async function swap_base_input(
 }
 
 export async function swap_base_output(
-  program: Program<CpSwap>,
+  program: Program<RaydiumCpSwap>,
   owner: Signer,
   configAddress: PublicKey,
   inputToken: PublicKey,
