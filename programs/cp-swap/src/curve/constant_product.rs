@@ -1,7 +1,7 @@
 //! The Uniswap invariantConstantProductCurve::
 
 use crate::{
-    curve::calculator::{RoundDirection, SwapWithoutFeesResult, TradingTokenResult},
+    curve::calculator::{RoundDirection, TradingTokenResult},
     utils::CheckedCeilDiv,
 };
 
@@ -20,24 +20,20 @@ impl ConstantProductCurve {
         source_amount: u128,
         swap_source_amount: u128,
         swap_destination_amount: u128,
-    ) -> Option<SwapWithoutFeesResult> {
+    ) -> u128 {
         // (x + delta_x) * (y - delta_y) = x * y
         // delta_y = (delta_x * y) / (x + delta_x)
         let numerator = source_amount.checked_mul(swap_destination_amount).unwrap();
         let denominator = swap_source_amount.checked_add(source_amount).unwrap();
-        let destination_amount_swapped = numerator.checked_div(denominator).unwrap();
-
-        Some(SwapWithoutFeesResult {
-            source_amount_swapped: source_amount,
-            destination_amount_swapped,
-        })
+        let destinsation_amount_swapped = numerator.checked_div(denominator).unwrap();
+        destinsation_amount_swapped
     }
 
     pub fn swap_base_output_without_fees(
         destinsation_amount: u128,
         swap_source_amount: u128,
         swap_destination_amount: u128,
-    ) -> Option<SwapWithoutFeesResult> {
+    ) -> u128 {
         // (x + delta_x) * (y - delta_y) = x * y
         // delta_x = (x * delta_y) / (y - delta_y)
         let numerator = swap_source_amount.checked_mul(destinsation_amount).unwrap();
@@ -45,11 +41,7 @@ impl ConstantProductCurve {
             .checked_sub(destinsation_amount)
             .unwrap();
         let (source_amount_swapped, _) = numerator.checked_ceil_div(denominator).unwrap();
-
-        Some(SwapWithoutFeesResult {
-            source_amount_swapped,
-            destination_amount_swapped: destinsation_amount,
-        })
+        source_amount_swapped
     }
 
     /// Get the amount of trading tokens for the given amount of pool tokens,

@@ -5,7 +5,7 @@ use anchor_lang::prelude::*;
 pub struct LpChangeEvent {
     #[index]
     pub pool_id: Pubkey,
-    pub lp_amount: u64,
+    pub lp_amount_before: u64,
     /// pool vault sub trade fees
     pub token_0_vault_before: u64,
     /// pool vault sub trade fees

@@ -70,11 +70,7 @@ pub struct Initialize<'info> {
             pool_state.key().as_ref(),
         ],
         bump,
-        mint::decimals = if token_0_mint.decimals >= token_1_mint.decimals{
-            token_0_mint.decimals
-        }else{
-            token_1_mint.decimals
-        },
+        mint::decimals = 9,
         mint::authority = authority,
         payer = creator,
         mint::token_program = token_program,
@@ -246,9 +242,7 @@ pub fn initialize(
         .unwrap()
         .integer_sqrt()
         .as_u64();
-    let lock_lp_amount = (10u64)
-        .checked_pow(u32::from(ctx.accounts.lp_mint.decimals))
-        .unwrap();
+    let lock_lp_amount = 100;
     msg!(
         "liquidity:{}, lock_lp_amount:{}, vault_0_amount:{},vault_1_amount:{}",
         liquidity,
