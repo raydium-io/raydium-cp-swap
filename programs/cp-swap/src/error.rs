@@ -28,4 +28,6 @@ pub enum ErrorCode {
     NotSupportMint,
     #[msg("invaild vault")]
     InvalidVault,
+    #[msg("Init lp amount is too less(Because 100 amount lp will be locked)")]
+    InitLpAmountTooLess,
 }

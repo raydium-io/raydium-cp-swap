@@ -255,7 +255,9 @@ pub fn initialize(
         ctx.accounts.token_program.to_account_info(),
         ctx.accounts.lp_mint.to_account_info(),
         ctx.accounts.creator_lp_token.to_account_info(),
-        liquidity.checked_sub(lock_lp_amount).unwrap(),
+        liquidity
+            .checked_sub(lock_lp_amount)
+            .ok_or(ErrorCode::InitLpAmountTooLess)?,
         &[&[crate::AUTH_SEED.as_bytes(), &[ctx.bumps.authority]]],
     )?;
 

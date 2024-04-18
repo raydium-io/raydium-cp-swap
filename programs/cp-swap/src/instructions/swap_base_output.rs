@@ -102,7 +102,10 @@ pub fn swap_base_output(
         );
         (input_transfer_amount, transfer_fee)
     };
-
+    require_eq!(
+        u64::try_from(result.destination_amount_swapped).unwrap(),
+        actual_amount_out
+    );
     let (output_transfer_amount, output_transfer_fee) = (actual_amount_out, out_transfer_fee);
 
     let protocol_fee = u64::try_from(result.protocol_fee).unwrap();

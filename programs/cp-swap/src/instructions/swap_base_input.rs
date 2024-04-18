@@ -145,7 +145,10 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
         constant_after
     );
     require_gte!(constant_after, constant_before);
-
+    require_eq!(
+        u64::try_from(result.source_amount_swapped).unwrap(),
+        actual_amount_in
+    );
     let (input_transfer_amount, input_transfer_fee) = (amount_in, transfer_fee);
     let (output_transfer_amount, output_transfer_fee) = {
         let amount_out = u64::try_from(result.destination_amount_swapped).unwrap();
