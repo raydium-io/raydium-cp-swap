@@ -45,15 +45,6 @@ impl TradeDirection {
     }
 }
 
-/// Encodes all results of swapping from a source token to a destination token
-#[derive(Debug, PartialEq)]
-pub struct SwapWithoutFeesResult {
-    /// Amount of source token swapped
-    pub source_amount_swapped: u128,
-    /// Amount of destination token swapped
-    pub destination_amount_swapped: u128,
-}
-
 /// Encodes results of depositing both sides at once
 #[derive(Debug, PartialEq)]
 pub struct TradingTokenResult {
@@ -114,21 +105,17 @@ impl CurveCalculator {
 
         let source_amount_less_fees = source_amount.checked_sub(trade_fee)?;
 
-        let SwapWithoutFeesResult {
-            source_amount_swapped,
-            destination_amount_swapped,
-        } = ConstantProductCurve::swap_base_input_without_fees(
+        let destination_amount_swapped = ConstantProductCurve::swap_base_input_without_fees(
             source_amount_less_fees,
             swap_source_amount,
             swap_destination_amount,
-        )?;
+        );
 
-        let source_amount_swapped = source_amount_swapped.checked_add(trade_fee)?;
         Some(SwapResult {
-            new_swap_source_amount: swap_source_amount.checked_add(source_amount_swapped)?,
+            new_swap_source_amount: swap_source_amount.checked_add(source_amount)?,
             new_swap_destination_amount: swap_destination_amount
                 .checked_sub(destination_amount_swapped)?,
-            source_amount_swapped,
+            source_amount_swapped: source_amount,
             destination_amount_swapped,
             trade_fee,
             protocol_fee,
@@ -144,14 +131,11 @@ impl CurveCalculator {
         protocol_fee_rate: u64,
         fund_fee_rate: u64,
     ) -> Option<SwapResult> {
-        let SwapWithoutFeesResult {
-            source_amount_swapped,
-            destination_amount_swapped,
-        } = ConstantProductCurve::swap_base_output_without_fees(
+        let source_amount_swapped = ConstantProductCurve::swap_base_output_without_fees(
             destinsation_amount,
             swap_source_amount,
             swap_destination_amount,
-        )?;
+        );
 
         let source_amount =
             Fees::calculate_pre_fee_amount(source_amount_swapped, trade_fee_rate).unwrap();
@@ -162,9 +146,9 @@ impl CurveCalculator {
         Some(SwapResult {
             new_swap_source_amount: swap_source_amount.checked_add(source_amount)?,
             new_swap_destination_amount: swap_destination_amount
-                .checked_sub(destination_amount_swapped)?,
+                .checked_sub(destinsation_amount)?,
             source_amount_swapped: source_amount,
-            destination_amount_swapped,
+            destination_amount_swapped: destinsation_amount,
             trade_fee,
             protocol_fee,
             fund_fee,

@@ -1,6 +1,6 @@
 # raydium-cp-swap
 
-Raydium constant product AMM Program without place order to OpenBook. The curve algorithm is inspired by Solana's official token-swap.
+Raydium constant product AMM Program without place order to OpenBook.
 
 ## Environment Setup
 
@@ -10,22 +10,13 @@ Raydium constant product AMM Program without place order to OpenBook. The curve 
 
 ## Quickstart
 
-Clone the repository and enter the source code directory.
+Clone the repository and test the program.
 
 ```shell
 
 git clone https://github.com/raydium-io/raydium-cp-swap
-cd raydium-cp-swap
+cd raydium-cp-swap && anchor test
 ```
-
-Build And deploy
-
-```shell
-anchor build
-anchor deploy
-```
-
-Attention, check your configuration and confirm the environment you want to deploy.
 
 ## License
 

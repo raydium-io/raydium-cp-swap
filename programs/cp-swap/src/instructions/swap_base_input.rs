@@ -145,23 +145,11 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
         constant_after
     );
     require_gte!(constant_after, constant_before);
-
-    // Re-calculate the source amount swapped based on what the curve says
-    let (input_transfer_amount, input_transfer_fee) =
-        if u64::try_from(result.source_amount_swapped).unwrap() != actual_amount_in {
-            let source_amount_swapped = u64::try_from(result.source_amount_swapped).unwrap();
-            let transfer_fee = get_transfer_inverse_fee(
-                &ctx.accounts.input_token_mint.to_account_info(),
-                source_amount_swapped,
-            )?;
-            (
-                source_amount_swapped.checked_add(transfer_fee).unwrap(),
-                transfer_fee,
-            )
-        } else {
-            (amount_in, transfer_fee)
-        };
-
+    require_eq!(
+        u64::try_from(result.source_amount_swapped).unwrap(),
+        actual_amount_in
+    );
+    let (input_transfer_amount, input_transfer_fee) = (amount_in, transfer_fee);
     let (output_transfer_amount, output_transfer_fee) = {
         let amount_out = u64::try_from(result.destination_amount_swapped).unwrap();
         let transfer_fee = get_transfer_fee(
@@ -170,9 +158,11 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
         )?;
         let amount_received = amount_out.checked_sub(transfer_fee).unwrap();
         require_gt!(amount_received, 0);
-        if amount_received < minimum_amount_out {
-            return Err(ErrorCode::ExceededSlippage.into());
-        }
+        require_gte!(
+            amount_received,
+            minimum_amount_out,
+            ErrorCode::ExceededSlippage
+        );
         (amount_out, transfer_fee)
     };
 
@@ -198,6 +188,17 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
         }
     };
 
+    emit!(SwapEvent {
+        pool_id,
+        input_vault_before: total_input_token_amount,
+        output_vault_before: total_output_token_amount,
+        input_amount: u64::try_from(result.source_amount_swapped).unwrap(),
+        output_amount: u64::try_from(result.destination_amount_swapped).unwrap(),
+        input_transfer_fee,
+        output_transfer_fee,
+        base_input: true
+    });
+
     transfer_from_user_to_pool_vault(
         ctx.accounts.payer.to_account_info(),
         ctx.accounts.input_token_account.to_account_info(),
@@ -218,17 +219,6 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
         ctx.accounts.output_token_mint.decimals,
         &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
     )?;
-
-    emit!(SwapEvent {
-        pool_id,
-        input_vault_before: total_input_token_amount,
-        output_vault_before: total_output_token_amount,
-        input_amount: u64::try_from(result.source_amount_swapped).unwrap(),
-        output_amount: u64::try_from(result.destination_amount_swapped).unwrap(),
-        input_transfer_fee,
-        output_transfer_fee,
-        base_input: true
-    });
 
     Ok(())
 }

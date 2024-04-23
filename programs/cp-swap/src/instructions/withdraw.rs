@@ -121,7 +121,7 @@ pub fn withdraw(
     .ok_or(ErrorCode::ZeroTradingTokens)?;
 
     let token_0_amount = u64::try_from(results.token_0_amount).unwrap();
-    let token_0_amount = std::cmp::min(ctx.accounts.token_0_vault.amount, token_0_amount);
+    let token_0_amount = std::cmp::min(total_token_0_amount, token_0_amount);
     let (receive_token_0_amount, token_0_transfer_fee) = {
         let transfer_fee = get_transfer_fee(&ctx.accounts.vault_0_mint.to_account_info(), token_0_amount)?;
         (
@@ -131,7 +131,7 @@ pub fn withdraw(
     };
 
     let token_1_amount = u64::try_from(results.token_1_amount).unwrap();
-    let token_1_amount = std::cmp::min(ctx.accounts.token_1_vault.amount, token_1_amount);
+    let token_1_amount = std::cmp::min(total_token_1_amount, token_1_amount);
     let (receive_token_1_amount, token_1_transfer_fee) = {
         let transfer_fee = get_transfer_fee(&ctx.accounts.vault_1_mint.to_account_info(), token_1_amount)?;
         (
@@ -157,6 +157,18 @@ pub fn withdraw(
     {
         return Err(ErrorCode::ExceededSlippage.into());
     }
+
+    emit!(LpChangeEvent {
+        pool_id,
+        lp_amount_before: pool_state.lp_supply,
+        token_0_vault_before: total_token_0_amount,
+        token_1_vault_before: total_token_1_amount,
+        token_0_amount: receive_token_0_amount,
+        token_1_amount: receive_token_1_amount,
+        token_0_transfer_fee,
+        token_1_transfer_fee,
+        change_type: 1
+    });
 
     pool_state.lp_supply = pool_state.lp_supply.checked_sub(lp_token_amount).unwrap();
     token_burn(
@@ -198,17 +210,7 @@ pub fn withdraw(
         &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
     )?;
 
-    emit!(LpChangeEvent {
-        pool_id,
-        lp_amount: lp_token_amount,
-        token_0_vault_before: total_token_0_amount,
-        token_1_vault_before: total_token_1_amount,
-        token_0_amount: receive_token_0_amount,
-        token_1_amount: receive_token_1_amount,
-        token_0_transfer_fee,
-        token_1_transfer_fee,
-        change_type: 1
-    });
+
 
     Ok(())
 }
