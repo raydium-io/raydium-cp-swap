@@ -6,3 +6,6 @@ pub use pool::*;
 
 pub mod events;
 pub use events::*;
+
+pub mod oracle;
+pub use oracle::*;

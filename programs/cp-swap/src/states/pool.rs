@@ -1,11 +1,12 @@
-use std::ops::{BitAnd, BitOr, BitXor};
-
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::Mint;
+use std::ops::{BitAnd, BitOr, BitXor};
 /// Seed to derive account address and signature
 pub const POOL_SEED: &str = "pool";
 pub const POOL_LP_MINT_SEED: &str = "pool_lp_mint";
 pub const POOL_VAULT_SEED: &str = "pool_vault";
+
+pub const Q32: u128 = (u32::MAX as u128) + 1; // 2^32
 
 pub enum PoolStatusBitIndex {
     Deposit,
@@ -69,6 +70,8 @@ pub struct PoolState {
     /// The timestamp allowed for swap in the pool.
     pub open_time: u64,
 
+    /// observation account key
+    pub observation_key: Pubkey,
     pub padding: [u64; 32],
 }
 
@@ -87,6 +90,7 @@ impl PoolState {
         token_0_mint: &InterfaceAccount<Mint>,
         token_1_mint: &InterfaceAccount<Mint>,
         lp_mint: &InterfaceAccount<Mint>,
+        observation_key: Pubkey,
     ) {
         self.auth_bump = auth_bump;
         self.lp_mint_decimals = lp_mint.decimals;
@@ -101,13 +105,13 @@ impl PoolState {
         self.token_1_mint = token_1_mint.key();
         self.token_0_program = *token_0_mint.to_account_info().owner;
         self.token_1_program = *token_1_mint.to_account_info().owner;
-
         self.lp_supply = lp_supply;
         self.protocol_fees_token_0 = 0;
         self.protocol_fees_token_1 = 0;
         self.fund_fees_token_0 = 0;
         self.fund_fees_token_1 = 0;
         self.open_time = open_time;
+        self.observation_key = observation_key;
     }
 
     pub fn set_status(&mut self, status: u8) {
@@ -138,6 +142,14 @@ impl PoolState {
             vault_1
                 .checked_sub(self.protocol_fees_token_1 + self.fund_fees_token_1)
                 .unwrap(),
+        )
+    }
+
+    pub fn token_price_x32(&self, vault_0: u64, vault_1: u64) -> (u128, u128) {
+        let (token_0_amount, token_1_amount) = self.vault_amount_without_fee(vault_0, vault_1);
+        (
+            token_1_amount as u128 * Q32 as u128 / token_0_amount as u128,
+            token_0_amount as u128 * Q32 as u128 / token_1_amount as u128,
         )
     }
 }

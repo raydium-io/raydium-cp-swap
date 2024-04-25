@@ -68,6 +68,9 @@ pub struct Swap<'info> {
         address = output_vault.mint
     )]
     pub output_token_mint: Box<InterfaceAccount<'info, Mint>>,
+    /// The program account for the most recent oracle observation
+    #[account(mut, address = pool_state.load()?.observation_key)]
+    pub observation_state: AccountLoader<'info, ObservationState>,
 }
 
 pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u64) -> Result<()> {
@@ -219,6 +222,33 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
         ctx.accounts.output_token_mint.decimals,
         &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
     )?;
+
+    ctx.accounts.input_vault.reload()?;
+    ctx.accounts.output_vault.reload()?;
+    let (token_0_price_x64, token_1_price_x64) = if ctx.accounts.input_vault.key()
+        == pool_state.token_0_vault
+        && ctx.accounts.output_vault.key() == pool_state.token_1_vault
+    {
+        pool_state.token_price_x32(
+            ctx.accounts.input_vault.amount,
+            ctx.accounts.output_vault.amount,
+        )
+    } else if ctx.accounts.input_vault.key() == pool_state.token_1_vault
+        && ctx.accounts.output_vault.key() == pool_state.token_0_vault
+    {
+        pool_state.token_price_x32(
+            ctx.accounts.output_vault.amount,
+            ctx.accounts.input_vault.amount,
+        )
+    } else {
+        return err!(ErrorCode::InvalidVault);
+    };
+
+    ctx.accounts.observation_state.load_mut()?.update(
+        oracle::block_timestamp(),
+        token_0_price_x64,
+        token_1_price_x64,
+    );
 
     Ok(())
 }

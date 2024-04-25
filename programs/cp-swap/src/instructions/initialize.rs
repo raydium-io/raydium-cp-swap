@@ -134,6 +134,10 @@ pub struct Initialize<'info> {
     )]
     pub create_pool_fee: Box<InterfaceAccount<'info, TokenAccount>>,
 
+    /// an account to store oracle observations
+    #[account(mut)]
+    pub observation_state: AccountLoader<'info, ObservationState>,
+
     /// Program to create mint account and mint tokens
     pub token_program: Program<'info, Token>,
     /// Spl token program or token program 2022
@@ -193,6 +197,9 @@ pub fn initialize(
             &[ctx.bumps.token_1_vault][..],
         ][..]],
     )?;
+
+    let mut observation_state = ctx.accounts.observation_state.load_init()?;
+    observation_state.pool_id = ctx.accounts.pool_state.key();
 
     let pool_state = &mut ctx.accounts.pool_state.load_init()?;
 
@@ -298,6 +305,7 @@ pub fn initialize(
         &ctx.accounts.token_0_mint,
         &ctx.accounts.token_1_mint,
         &ctx.accounts.lp_mint,
+        ctx.accounts.observation_state.key(),
     );
 
     Ok(())
