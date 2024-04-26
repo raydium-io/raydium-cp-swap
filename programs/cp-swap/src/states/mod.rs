@@ -1,7 +1,7 @@
 pub mod config;
-pub mod pool;
-
 pub use config::*;
+
+pub mod pool;
 pub use pool::*;
 
 pub mod events;

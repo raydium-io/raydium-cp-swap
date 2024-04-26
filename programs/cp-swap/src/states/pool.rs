@@ -36,6 +36,20 @@ pub struct PoolState {
     pub mint_0_decimals: u8,
     pub mint_1_decimals: u8,
 
+    /// lp mint supply
+    pub lp_supply: u64,
+    /// The amounts of token_0 and token_1 that are owed to the liquidity provider.
+    pub protocol_fees_token_0: u64,
+    pub protocol_fees_token_1: u64,
+
+    pub fund_fees_token_0: u64,
+    pub fund_fees_token_1: u64,
+
+    /// The timestamp allowed for swap in the pool.
+    pub open_time: u64,
+    /// padding for future updates
+    pub padding: [u64; 32],
+
     /// Which config the pool belongs
     pub amm_config: Pubkey,
     /// pool creator
@@ -58,25 +72,12 @@ pub struct PoolState {
     /// token_1 program
     pub token_1_program: Pubkey,
 
-    /// lp mint supply
-    pub lp_supply: u64,
-    /// The amounts of token_0 and token_1 that are owed to the liquidity provider.
-    pub protocol_fees_token_0: u64,
-    pub protocol_fees_token_1: u64,
-
-    pub fund_fees_token_0: u64,
-    pub fund_fees_token_1: u64,
-
-    /// The timestamp allowed for swap in the pool.
-    pub open_time: u64,
-
-    /// observation account key
+    /// observation account to store oracle data
     pub observation_key: Pubkey,
-    pub padding: [u64; 32],
 }
 
 impl PoolState {
-    pub const LEN: usize = 8 + 1 * 5 + 9 * 32 + 8 * 6 + 8 * 32;
+    pub const LEN: usize = 8 + 1 * 5 + 8 * 6 + 8 * 32 + 10 * 32;
 
     pub fn initialize(
         &mut self,
@@ -105,13 +106,14 @@ impl PoolState {
         self.token_1_mint = token_1_mint.key();
         self.token_0_program = *token_0_mint.to_account_info().owner;
         self.token_1_program = *token_1_mint.to_account_info().owner;
+        self.observation_key = observation_key;
         self.lp_supply = lp_supply;
         self.protocol_fees_token_0 = 0;
         self.protocol_fees_token_1 = 0;
         self.fund_fees_token_0 = 0;
         self.fund_fees_token_1 = 0;
         self.open_time = open_time;
-        self.observation_key = observation_key;
+        self.padding = [0u64; 32];
     }
 
     pub fn set_status(&mut self, status: u8) {

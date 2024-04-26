@@ -135,7 +135,16 @@ pub struct Initialize<'info> {
     pub create_pool_fee: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// an account to store oracle observations
-    #[account(mut)]
+    #[account(
+        init,
+        seeds = [
+            OBSERVATION_SEED.as_bytes(),
+            pool_state.key().as_ref(),
+        ],
+        bump,
+        payer = creator,
+        space = ObservationState::LEN
+    )]
     pub observation_state: AccountLoader<'info, ObservationState>,
 
     /// Program to create mint account and mint tokens
