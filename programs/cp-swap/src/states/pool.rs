@@ -24,6 +24,31 @@ pub enum PoolStatusBitFlag {
 #[repr(packed)]
 #[derive(Default, Debug)]
 pub struct PoolState {
+    /// Which config the pool belongs
+    pub amm_config: Pubkey,
+    /// pool creator
+    pub pool_creator: Pubkey,
+    /// Token A
+    pub token_0_vault: Pubkey,
+    /// Token B
+    pub token_1_vault: Pubkey,
+
+    /// Pool tokens are issued when A or B tokens are deposited.
+    /// Pool tokens can be withdrawn back to the original A or B token.
+    pub lp_mint: Pubkey,
+    /// Mint information for token A
+    pub token_0_mint: Pubkey,
+    /// Mint information for token B
+    pub token_1_mint: Pubkey,
+
+    /// token_0 program
+    pub token_0_program: Pubkey,
+    /// token_1 program
+    pub token_1_program: Pubkey,
+
+    /// observation account to store oracle data
+    pub observation_key: Pubkey,
+
     pub auth_bump: u8,
     /// Bitwise representation of the state of the pool
     /// bit0, 1: disable deposit(vaule is 1), 0: normal
@@ -49,35 +74,10 @@ pub struct PoolState {
     pub open_time: u64,
     /// padding for future updates
     pub padding: [u64; 32],
-
-    /// Which config the pool belongs
-    pub amm_config: Pubkey,
-    /// pool creator
-    pub pool_creator: Pubkey,
-    /// Token A
-    pub token_0_vault: Pubkey,
-    /// Token B
-    pub token_1_vault: Pubkey,
-
-    /// Pool tokens are issued when A or B tokens are deposited.
-    /// Pool tokens can be withdrawn back to the original A or B token.
-    pub lp_mint: Pubkey,
-    /// Mint information for token A
-    pub token_0_mint: Pubkey,
-    /// Mint information for token B
-    pub token_1_mint: Pubkey,
-
-    /// token_0 program
-    pub token_0_program: Pubkey,
-    /// token_1 program
-    pub token_1_program: Pubkey,
-
-    /// observation account to store oracle data
-    pub observation_key: Pubkey,
 }
 
 impl PoolState {
-    pub const LEN: usize = 8 + 1 * 5 + 8 * 6 + 8 * 32 + 10 * 32;
+    pub const LEN: usize = 8 + 10 * 32 + 1 * 5 + 8 * 6 + 8 * 32;
 
     pub fn initialize(
         &mut self,
@@ -93,10 +93,6 @@ impl PoolState {
         lp_mint: &InterfaceAccount<Mint>,
         observation_key: Pubkey,
     ) {
-        self.auth_bump = auth_bump;
-        self.lp_mint_decimals = lp_mint.decimals;
-        self.mint_0_decimals = token_0_mint.decimals;
-        self.mint_1_decimals = token_1_mint.decimals;
         self.amm_config = amm_config.key();
         self.pool_creator = pool_creator.key();
         self.token_0_vault = token_0_vault;
@@ -107,6 +103,10 @@ impl PoolState {
         self.token_0_program = *token_0_mint.to_account_info().owner;
         self.token_1_program = *token_1_mint.to_account_info().owner;
         self.observation_key = observation_key;
+        self.auth_bump = auth_bump;
+        self.lp_mint_decimals = lp_mint.decimals;
+        self.mint_0_decimals = token_0_mint.decimals;
+        self.mint_1_decimals = token_1_mint.decimals;
         self.lp_supply = lp_supply;
         self.protocol_fees_token_0 = 0;
         self.protocol_fees_token_1 = 0;
