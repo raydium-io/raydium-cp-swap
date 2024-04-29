@@ -90,7 +90,6 @@ pub fn deposit(
     maximum_token_0_amount: u64,
     maximum_token_1_amount: u64,
 ) -> Result<()> {
-    require_gt!(ctx.accounts.lp_mint.supply, 0);
     let pool_id = ctx.accounts.pool_state.key();
     let pool_state = &mut ctx.accounts.pool_state.load_mut()?;
     if !pool_state.get_status_by_bit(PoolStatusBitIndex::Deposit) {
