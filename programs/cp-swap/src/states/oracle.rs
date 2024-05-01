@@ -22,7 +22,7 @@ pub struct Observation {
     pub cumulative_token_1_price_x32: u128,
 }
 impl Observation {
-    pub const LEN: usize = 4 + 16 + 16;
+    pub const LEN: usize = 8 + 16 + 16;
 }
 
 #[account(zero_copy(unsafe))]
