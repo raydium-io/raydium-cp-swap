@@ -151,13 +151,6 @@ pub fn withdraw(
         receive_token_1_amount,
         token_1_transfer_fee
     );
-
-    if receive_token_0_amount < minimum_token_0_amount
-        || receive_token_1_amount < minimum_token_1_amount
-    {
-        return Err(ErrorCode::ExceededSlippage.into());
-    }
-
     emit!(LpChangeEvent {
         pool_id,
         lp_amount_before: pool_state.lp_supply,
@@ -169,6 +162,12 @@ pub fn withdraw(
         token_1_transfer_fee,
         change_type: 1
     });
+
+    if receive_token_0_amount < minimum_token_0_amount
+        || receive_token_1_amount < minimum_token_1_amount
+    {
+        return Err(ErrorCode::ExceededSlippage.into());
+    }
 
     pool_state.lp_supply = pool_state.lp_supply.checked_sub(lp_token_amount).unwrap();
     token_burn(
