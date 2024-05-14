@@ -15,7 +15,7 @@ pub fn swap_base_output(
     let pool_id = ctx.accounts.pool_state.key();
     let pool_state = &mut ctx.accounts.pool_state.load_mut()?;
     if !pool_state.get_status_by_bit(PoolStatusBitIndex::Swap)
-        || block_timestamp < pool_state.open_time
+        || block_timestamp <= pool_state.open_time
     {
         return err!(ErrorCode::NotApproved);
     }
