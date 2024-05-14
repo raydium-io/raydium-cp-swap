@@ -162,5 +162,32 @@ pub fn swap_base_output(
         &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
     )?;
 
+    ctx.accounts.input_vault.reload()?;
+    ctx.accounts.output_vault.reload()?;
+    let (token_0_price_x64, token_1_price_x64) = if ctx.accounts.input_vault.key()
+        == pool_state.token_0_vault
+        && ctx.accounts.output_vault.key() == pool_state.token_1_vault
+    {
+        pool_state.token_price_x32(
+            ctx.accounts.input_vault.amount,
+            ctx.accounts.output_vault.amount,
+        )
+    } else if ctx.accounts.input_vault.key() == pool_state.token_1_vault
+        && ctx.accounts.output_vault.key() == pool_state.token_0_vault
+    {
+        pool_state.token_price_x32(
+            ctx.accounts.output_vault.amount,
+            ctx.accounts.input_vault.amount,
+        )
+    } else {
+        return err!(ErrorCode::InvalidVault);
+    };
+
+    ctx.accounts.observation_state.load_mut()?.update(
+        oracle::block_timestamp(),
+        token_0_price_x64,
+        token_1_price_x64,
+    );
+
     Ok(())
 }

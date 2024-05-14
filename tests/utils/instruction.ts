@@ -23,6 +23,7 @@ import {
   getPoolLpMintAddress,
   getPoolVaultAddress,
   createTokenMintAndAssociatedTokenAccount,
+  getOrcleAccountAddress,
 } from "./index";
 
 import { ASSOCIATED_PROGRAM_ID } from "@coral-xyz/anchor/dist/cjs/utils/token";
@@ -298,6 +299,11 @@ export async function initialize(
     ASSOCIATED_PROGRAM_ID
   );
 
+  const [observationAddress] = await getOrcleAccountAddress(
+    poolAddress,
+    program.programId
+  );
+
   const creatorToken0 = getAssociatedTokenAddressSync(
     token0,
     creator.publicKey,
@@ -326,6 +332,7 @@ export async function initialize(
       token0Vault: vault0,
       token1Vault: vault1,
       createPoolFee,
+      observationState: observationAddress,
       tokenProgram: TOKEN_PROGRAM_ID,
       token0Program: token0Program,
       token1Program: token1Program,
@@ -539,6 +546,10 @@ export async function swap_base_input(
     false,
     outputTokenProgram
   );
+  const [observationAddress] = await getOrcleAccountAddress(
+    poolAddress,
+    program.programId
+  );
 
   const tx = await program.methods
     .swapBaseInput(amount_in, minimum_amount_out)
@@ -555,6 +566,7 @@ export async function swap_base_input(
       outputTokenProgram: outputTokenProgram,
       inputTokenMint: inputToken,
       outputTokenMint: outputToken,
+      observationState: observationAddress,
     })
     .rpc(confirmOptions);
 
@@ -604,6 +616,10 @@ export async function swap_base_output(
     false,
     outputTokenProgram
   );
+  const [observationAddress] = await getOrcleAccountAddress(
+    poolAddress,
+    program.programId
+  );
 
   const tx = await program.methods
     .swapBaseOutput(max_amount_in, amount_out_less_fee)
@@ -620,6 +636,7 @@ export async function swap_base_output(
       outputTokenProgram: outputTokenProgram,
       inputTokenMint: inputToken,
       outputTokenMint: outputToken,
+      observationState: observationAddress,
     })
     .rpc(confirmOptions);
 
