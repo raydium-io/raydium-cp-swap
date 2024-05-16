@@ -70,7 +70,7 @@ pub struct PoolState {
     pub fund_fees_token_0: u64,
     pub fund_fees_token_1: u64,
 
-    /// The timestamp allowed for swap in the pool at the next second(open_time + 1).
+    /// The timestamp allowed for swap in the pool.
     pub open_time: u64,
     /// padding for future updates
     pub padding: [u64; 32],

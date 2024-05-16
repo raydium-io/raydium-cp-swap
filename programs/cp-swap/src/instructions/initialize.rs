@@ -7,7 +7,7 @@ use crate::utils::*;
 use anchor_lang::{
     accounts::interface_account::InterfaceAccount,
     prelude::*,
-    solana_program::{program::invoke, system_instruction},
+    solana_program::{clock, program::invoke, system_instruction},
 };
 use anchor_spl::{
     associated_token::AssociatedToken,
@@ -165,7 +165,7 @@ pub fn initialize(
     ctx: Context<Initialize>,
     init_amount_0: u64,
     init_amount_1: u64,
-    open_time: u64,
+    mut open_time: u64,
 ) -> Result<()> {
     if !(is_supported_mint(&ctx.accounts.token_0_mint).unwrap()
         && is_supported_mint(&ctx.accounts.token_1_mint).unwrap())
@@ -175,6 +175,10 @@ pub fn initialize(
 
     if ctx.accounts.amm_config.disable_create_pool {
         return err!(ErrorCode::NotApproved);
+    }
+    let block_timestamp = clock::Clock::get()?.unix_timestamp as u64;
+    if open_time <= block_timestamp {
+        open_time = block_timestamp + 1;
     }
     // due to stack/heap limitations, we have to create redundant new accounts ourselves.
     create_token_account(
