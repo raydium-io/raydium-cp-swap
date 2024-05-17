@@ -1,6 +1,14 @@
 # raydium-cp-swap
 
-Raydium constant product AMM Program without place order to OpenBook.
+A revamped constant product AMM program optimized for straightforward pool deployment along with additional features and integrations:
+- No Openbook market ID is required for pool creation
+- Token22 is supported
+- Built-in price oracle
+- Optimized in Anchor
+
+The program has been audited by [MadShield](https://www.madshield.xyz/). The report can be found [here](https://github.com/raydium-io/raydium-docs/tree/master/audit/MadShield%20Q1%202024).
+
+The program assets are in-scope for Raydium’s [Immunefi bug bounty program](https://immunefi.com/bug-bounty/raydium/).
 
 ## Environment Setup
 
