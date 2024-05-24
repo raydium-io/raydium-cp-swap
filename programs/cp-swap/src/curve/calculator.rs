@@ -217,12 +217,11 @@ pub mod test {
         swap_destination_amount: u128,
         trade_direction: TradeDirection,
     ) {
-        let results = ConstantProductCurve::swap_base_input_without_fees(
+        let destination_amount_swapped = ConstantProductCurve::swap_base_input_without_fees(
             source_token_amount,
             swap_source_amount,
             swap_destination_amount,
-        )
-        .unwrap();
+        );
 
         let (swap_token_0_amount, swap_token_1_amount) = match trade_direction {
             TradeDirection::ZeroForOne => (swap_source_amount, swap_destination_amount),
@@ -232,11 +231,9 @@ pub mod test {
             .checked_mul(swap_token_1_amount)
             .unwrap();
 
-        let new_swap_source_amount = swap_source_amount
-            .checked_add(results.source_amount_swapped)
-            .unwrap();
+        let new_swap_source_amount = swap_source_amount.checked_add(source_token_amount).unwrap();
         let new_swap_destination_amount = swap_destination_amount
-            .checked_sub(results.destination_amount_swapped)
+            .checked_sub(destination_amount_swapped)
             .unwrap();
         let (swap_token_0_amount, swap_token_1_amount) = match trade_direction {
             TradeDirection::ZeroForOne => (new_swap_source_amount, new_swap_destination_amount),
