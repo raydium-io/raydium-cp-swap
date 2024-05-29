@@ -21,7 +21,10 @@ use instructions::events_instructions_parse::*;
 use instructions::rpc::*;
 use instructions::token_instructions::*;
 use instructions::utils::*;
-use spl_token_2022::{extension::StateWithExtensionsMut, state::Account};
+use spl_token_2022::{
+    extension::StateWithExtensionsMut,
+    state::{Account, Mint},
+};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ClientConfig {
@@ -428,10 +431,8 @@ fn main() -> Result<()> {
                 StateWithExtensionsMut::<Account>::unpack(&mut token_0_vault_data)?;
             let token_1_vault_info =
                 StateWithExtensionsMut::<Account>::unpack(&mut token_1_vault_data)?;
-            let token_0_mint_info =
-                StateWithExtensionsMut::<Account>::unpack(&mut token_0_mint_data)?;
-            let token_1_mint_info =
-                StateWithExtensionsMut::<Account>::unpack(&mut token_1_mint_data)?;
+            let token_0_mint_info = StateWithExtensionsMut::<Mint>::unpack(&mut token_0_mint_data)?;
+            let token_1_mint_info = StateWithExtensionsMut::<Mint>::unpack(&mut token_1_mint_data)?;
             let user_input_token_info =
                 StateWithExtensionsMut::<Account>::unpack(&mut user_input_token_data)?;
 
@@ -584,10 +585,8 @@ fn main() -> Result<()> {
                 StateWithExtensionsMut::<Account>::unpack(&mut token_0_vault_data)?;
             let token_1_vault_info =
                 StateWithExtensionsMut::<Account>::unpack(&mut token_1_vault_data)?;
-            let token_0_mint_info =
-                StateWithExtensionsMut::<Account>::unpack(&mut token_0_mint_data)?;
-            let token_1_mint_info =
-                StateWithExtensionsMut::<Account>::unpack(&mut token_1_mint_data)?;
+            let token_0_mint_info = StateWithExtensionsMut::<Mint>::unpack(&mut token_0_mint_data)?;
+            let token_1_mint_info = StateWithExtensionsMut::<Mint>::unpack(&mut token_1_mint_data)?;
             let user_input_token_info =
                 StateWithExtensionsMut::<Account>::unpack(&mut user_input_token_data)?;
 
