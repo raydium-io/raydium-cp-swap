@@ -61,7 +61,7 @@ pub struct PoolState {
     pub mint_0_decimals: u8,
     pub mint_1_decimals: u8,
 
-    /// lp mint supply
+    /// True circulating supply without burns and lock ups
     pub lp_supply: u64,
     /// The amounts of token_0 and token_1 that are owed to the liquidity provider.
     pub protocol_fees_token_0: u64,

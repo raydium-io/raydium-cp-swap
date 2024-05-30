@@ -161,19 +161,18 @@ mod tests {
         expected_destination_amount_swapped: u128,
     ) {
         let invariant = swap_source_amount * swap_destination_amount;
-        let result = ConstantProductCurve::swap_base_input_without_fees(
+        let destination_amount_swapped = ConstantProductCurve::swap_base_input_without_fees(
             source_amount,
             swap_source_amount,
             swap_destination_amount,
-        )
-        .unwrap();
-        assert_eq!(result.source_amount_swapped, expected_source_amount_swapped);
+        );
+        assert_eq!(source_amount, expected_source_amount_swapped);
         assert_eq!(
-            result.destination_amount_swapped,
+            destination_amount_swapped,
             expected_destination_amount_swapped
         );
-        let new_invariant = (swap_source_amount + result.source_amount_swapped)
-            * (swap_destination_amount - result.destination_amount_swapped);
+        let new_invariant = (swap_source_amount + source_amount)
+            * (swap_destination_amount - destination_amount_swapped);
         assert!(new_invariant >= invariant);
     }
 
