@@ -86,6 +86,7 @@ pub fn collect_fund_fee(
         pool_state.fund_fees_token_0 = pool_state.fund_fees_token_0.checked_sub(amount_0).unwrap();
         pool_state.fund_fees_token_1 = pool_state.fund_fees_token_1.checked_sub(amount_1).unwrap();
         auth_bump = pool_state.auth_bump;
+        pool_state.recent_epoch = Clock::get()?.epoch;
     }
     transfer_from_pool_vault_to_user(
         ctx.accounts.authority.to_account_info(),

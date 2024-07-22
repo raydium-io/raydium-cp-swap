@@ -196,6 +196,7 @@ pub fn deposit(
         lp_token_amount,
         &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
     )?;
+    pool_state.recent_epoch = Clock::get()?.epoch;
 
     Ok(())
 }
