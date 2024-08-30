@@ -26,6 +26,8 @@ spl-math = { version = "0.2", features = ["no-entrypoint"] }
 spl-memo = "4.0.0"
 uint = "0.9.1"
 solana-security-txt = "1.1.1"
+bytemuck = { version = "1.4.0", features = ["derive", "min_const_generics"] }
+arrayref = { version = "0.3.6" }
 
 [dev-dependencies]
 quickcheck = "0.9"
