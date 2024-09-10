@@ -318,7 +318,7 @@ export async function initialize(
   );
   await program.methods
     .initialize(initAmount.initAmount0, initAmount.initAmount1, new BN(0))
-    .accounts({
+    .accountsPartial({
       creator: creator.publicKey,
       ammConfig: configAddress,
       authority: auth,

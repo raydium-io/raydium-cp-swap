@@ -24,7 +24,7 @@ pub struct Deposit<'info> {
     #[account(mut)]
     pub pool_state: AccountLoader<'info, PoolState>,
 
-    /// Owner lp tokan account
+    /// Owner lp token account
     #[account(mut,  token::authority = owner)]
     pub owner_lp_token: Box<InterfaceAccount<'info, TokenAccount>>,
 
