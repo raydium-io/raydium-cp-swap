@@ -32,19 +32,17 @@ pub struct Withdraw<'info> {
     )]
     pub owner_lp_token: Box<InterfaceAccount<'info, TokenAccount>>,
 
-    /// The owner's token account for receive token_0
+    /// The token account for receive token_0, 
     #[account(
         mut,
         token::mint = token_0_vault.mint,
-        token::authority = owner
     )]
     pub token_0_account: Box<InterfaceAccount<'info, TokenAccount>>,
 
-    /// The owner's token account for receive token_1
+    /// The token account for receive token_1
     #[account(
         mut,
         token::mint = token_1_vault.mint,
-        token::authority = owner
     )]
     pub token_1_account: Box<InterfaceAccount<'info, TokenAccount>>,
 
