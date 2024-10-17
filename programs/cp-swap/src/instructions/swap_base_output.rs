@@ -72,19 +72,24 @@ pub fn swap_base_output(
     )
     .ok_or(ErrorCode::ZeroTradingTokens)?;
 
-    let constant_after = u128::from(result.new_swap_source_amount)
-        .checked_mul(u128::from(result.new_swap_destination_amount))
-        .unwrap();
+    let constant_after = u128::from(
+        result
+            .new_swap_source_amount
+            .checked_sub(result.trade_fee)
+            .unwrap(),
+    )
+    .checked_mul(u128::from(result.new_swap_destination_amount))
+    .unwrap();
 
     #[cfg(feature = "enable-log")]
     msg!(
-        "source_amount_swapped:{}, destination_amount_swapped:{},constant_before:{},constant_after:{}",
+        "source_amount_swapped:{}, destination_amount_swapped:{}, trade_fee:{}, constant_before:{},constant_after:{}",
         result.source_amount_swapped,
         result.destination_amount_swapped,
+        result.trade_fee,
         constant_before,
         constant_after
     );
-    require_gte!(constant_after, constant_before);
 
     // Re-calculate the source amount swapped based on what the curve says
     let (input_transfer_amount, input_transfer_fee) = {
@@ -140,6 +145,7 @@ pub fn swap_base_output(
         output_transfer_fee,
         base_input: false
     });
+    require_gte!(constant_after, constant_before);
 
     transfer_from_user_to_pool_vault(
         ctx.accounts.payer.to_account_info(),
