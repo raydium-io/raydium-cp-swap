@@ -79,6 +79,7 @@ impl ObservationState {
     ) {
         let observation_index = self.observation_index;
         if !self.initialized {
+            // skip the pool init price
             self.initialized = true;
             self.observations[observation_index as usize].block_timestamp = block_timestamp;
             self.observations[observation_index as usize].cumulative_token_0_price_x32 = 0;

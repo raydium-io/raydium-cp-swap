@@ -89,39 +89,56 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
     let actual_amount_in = amount_in.saturating_sub(transfer_fee);
     require_gt!(actual_amount_in, 0);
 
-    // Calculate the trade amounts
-    let (trade_direction, total_input_token_amount, total_output_token_amount) =
-        if ctx.accounts.input_vault.key() == pool_state.token_0_vault
-            && ctx.accounts.output_vault.key() == pool_state.token_1_vault
-        {
-            let (total_input_token_amount, total_output_token_amount) = pool_state
-                .vault_amount_without_fee(
-                    ctx.accounts.input_vault.amount,
-                    ctx.accounts.output_vault.amount,
-                );
+    // Calculate the trade amounts and the price before swap
+    let (
+        trade_direction,
+        total_input_token_amount,
+        total_output_token_amount,
+        token_0_price_x64,
+        token_1_price_x64,
+    ) = if ctx.accounts.input_vault.key() == pool_state.token_0_vault
+        && ctx.accounts.output_vault.key() == pool_state.token_1_vault
+    {
+        let (total_input_token_amount, total_output_token_amount) = pool_state
+            .vault_amount_without_fee(
+                ctx.accounts.input_vault.amount,
+                ctx.accounts.output_vault.amount,
+            );
+        let (token_0_price_x64, token_1_price_x64) = pool_state.token_price_x32(
+            ctx.accounts.input_vault.amount,
+            ctx.accounts.output_vault.amount,
+        );
 
-            (
-                TradeDirection::ZeroForOne,
-                total_input_token_amount,
-                total_output_token_amount,
-            )
-        } else if ctx.accounts.input_vault.key() == pool_state.token_1_vault
-            && ctx.accounts.output_vault.key() == pool_state.token_0_vault
-        {
-            let (total_output_token_amount, total_input_token_amount) = pool_state
-                .vault_amount_without_fee(
-                    ctx.accounts.output_vault.amount,
-                    ctx.accounts.input_vault.amount,
-                );
+        (
+            TradeDirection::ZeroForOne,
+            total_input_token_amount,
+            total_output_token_amount,
+            token_0_price_x64,
+            token_1_price_x64,
+        )
+    } else if ctx.accounts.input_vault.key() == pool_state.token_1_vault
+        && ctx.accounts.output_vault.key() == pool_state.token_0_vault
+    {
+        let (total_output_token_amount, total_input_token_amount) = pool_state
+            .vault_amount_without_fee(
+                ctx.accounts.output_vault.amount,
+                ctx.accounts.input_vault.amount,
+            );
+        let (token_0_price_x64, token_1_price_x64) = pool_state.token_price_x32(
+            ctx.accounts.output_vault.amount,
+            ctx.accounts.input_vault.amount,
+        );
 
-            (
-                TradeDirection::OneForZero,
-                total_input_token_amount,
-                total_output_token_amount,
-            )
-        } else {
-            return err!(ErrorCode::InvalidVault);
-        };
+        (
+            TradeDirection::OneForZero,
+            total_input_token_amount,
+            total_output_token_amount,
+            token_0_price_x64,
+            token_1_price_x64,
+        )
+    } else {
+        return err!(ErrorCode::InvalidVault);
+    };
     let constant_before = u128::from(total_input_token_amount)
         .checked_mul(u128::from(total_output_token_amount))
         .unwrap();
@@ -229,27 +246,7 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
         &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
     )?;
 
-    ctx.accounts.input_vault.reload()?;
-    ctx.accounts.output_vault.reload()?;
-    let (token_0_price_x64, token_1_price_x64) = if ctx.accounts.input_vault.key()
-        == pool_state.token_0_vault
-        && ctx.accounts.output_vault.key() == pool_state.token_1_vault
-    {
-        pool_state.token_price_x32(
-            ctx.accounts.input_vault.amount,
-            ctx.accounts.output_vault.amount,
-        )
-    } else if ctx.accounts.input_vault.key() == pool_state.token_1_vault
-        && ctx.accounts.output_vault.key() == pool_state.token_0_vault
-    {
-        pool_state.token_price_x32(
-            ctx.accounts.output_vault.amount,
-            ctx.accounts.input_vault.amount,
-        )
-    } else {
-        return err!(ErrorCode::InvalidVault);
-    };
-
+    // update the previous price to the observation
     ctx.accounts.observation_state.load_mut()?.update(
         oracle::block_timestamp(),
         token_0_price_x64,
