@@ -23,7 +23,7 @@ Clone the repository and test the program.
 ```shell
 
 git clone https://github.com/raydium-io/raydium-cp-swap
-cd raydium-cp-swap && anchor test
+cd raydium-cp-swap && yarn && anchor test
 ```
 
 ## License
