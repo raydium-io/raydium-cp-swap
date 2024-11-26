@@ -5,15 +5,11 @@ on:
   pull_request:
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
+  run-anchor-test:
+    runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v3
-
-      - uses: metadaoproject/setup-anchor@v3
+      - uses: metadaoproject/anchor-test@v2.1
         with:
-          anchor-version: '0.29.0'
-          solana-cli-version: '1.17.0'
-
-      - name: Run tests
-        run: anchor test
+          anchor-version: "0.29.0"
+          solana-cli-version: "1.17.0"
