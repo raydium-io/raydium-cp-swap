@@ -1,0 +1,19 @@
+name: Anchor Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: metadaoproject/setup-anchor@v3
+        with:
+          anchor-version: '0.29.0'
+          solana-cli-version: '1.17.0'
+
+      - name: Run tests
+        run: anchor test
