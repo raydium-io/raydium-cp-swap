@@ -29,7 +29,7 @@ pub mod admin {
     #[cfg(feature = "devnet")]
     declare_id!("adMCyoCgfkg7bQiJ9aBJ59H3BXLY3r5LNLfPpQfMzBe");
     #[cfg(not(feature = "devnet"))]
-    declare_id!("GThUX1Atko4tqhN2NaiTazWSeFWMuiUvfFnyJyUghFMJ");
+    declare_id!("FQ4pjB7rKQgVXhVJqegUPXGJRhA9W9KpuGrEQ8PikZ4N");
 }
 
 pub mod create_pool_fee_reveiver {

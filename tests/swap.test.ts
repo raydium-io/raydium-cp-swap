@@ -4,6 +4,36 @@ import { RaydiumCpSwap } from "../target/types/raydium_cp_swap";
 import { setupSwapTest, swap_base_input, swap_base_output } from "./utils";
 import { assert } from "chai";
 import { getAccount, getAssociatedTokenAddressSync } from "@solana/spl-token";
+import { Connection } from "@solana/web3.js";
+
+export enum PoolStatusBitIndex {
+  Deposit = 0,
+  Withdraw = 1,
+  Swap = 2,
+}
+
+export function checkPoolStatusBit(
+  status: number,
+  bit: PoolStatusBitIndex
+): boolean {
+  const mask = 1 << bit;
+  return (status & mask) === 0; // Returns true if enabled (bit is 0)
+}
+
+export async function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export async function waitForNextBlock(connection: Connection) {
+  const slot = await connection.getSlot();
+  console.log("Current slot:", slot);
+
+  // Wait for next block
+  while ((await connection.getSlot()) <= slot) {
+    await sleep(100);
+  }
+  console.log("New slot:", await connection.getSlot());
+}
 
 describe("swap test", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
@@ -29,6 +59,8 @@ describe("swap test", () => {
       },
       { transferFeeBasisPoints: 0, MaxFee: 0 }
     );
+    await waitForNextBlock(program.provider.connection);
+
     const inputToken = poolState.token0Mint;
     const inputTokenProgram = poolState.token0Program;
     const inputTokenAccountAddr = getAssociatedTokenAddressSync(

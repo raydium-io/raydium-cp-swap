@@ -5,6 +5,21 @@ import { RaydiumCpSwap } from "../target/types/raydium_cp_swap";
 import { getAccount, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { setupInitializeTest, initialize, calculateFee } from "./utils";
 import { assert } from "chai";
+import { PublicKey } from "@solana/web3.js";
+
+export async function validateAmmConfigState(
+  program: Program<RaydiumCpSwap>,
+  configAddress: PublicKey
+) {
+  const config = await program.account.ammConfig.fetch(configAddress);
+  console.log(config);
+  if (config.disableCreatePool) {
+    throw new Error(
+      `AmmConfig ${configAddress.toString()} has pool creation disabled`
+    );
+  }
+  return config;
+}
 
 describe("initialize test", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
