@@ -25,6 +25,27 @@ import {
 } from "@solana/spl-token";
 import { sendTransaction } from "./index";
 
+export async function printSlot(connection: Connection) {
+  const slot = await connection.getSlot();
+  console.log("Current slot:", slot);
+}
+
+function compareByteArrays(a: Uint8Array, b: Uint8Array): number {
+  if (a.length !== b.length) {
+    throw new Error(
+      "Pubkeys should always have the same length of byte arrays"
+    );
+  }
+
+  // Compare elements
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return a[i] - b[i];
+  }
+
+  // Arrays are equal
+  return 0;
+}
+
 // create a token mint and a token2022 mint with transferFeeConfig
 export async function createTokenMintAndAssociatedTokenAccount(
   connection: Connection,
@@ -67,15 +88,9 @@ export async function createTokenMintAndAssociatedTokenAccount(
 
   tokenArray.push({ address: token1, program: TOKEN_2022_PROGRAM_ID });
 
-  tokenArray.sort(function (x, y) {
-    if (x.address < y.address) {
-      return -1;
-    }
-    if (x.address > y.address) {
-      return 1;
-    }
-    return 0;
-  });
+  tokenArray.sort((x, y) =>
+    compareByteArrays(x.address.toBytes(), y.address.toBytes())
+  );
 
   token0 = tokenArray[0].address;
   token1 = tokenArray[1].address;
