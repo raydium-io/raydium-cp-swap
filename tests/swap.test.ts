@@ -85,7 +85,8 @@ describe("swap test", () => {
       poolState.token1Mint,
       poolState.token1Program,
       amount_in,
-      new BN(0)
+      new BN(0),
+      confirmOptions
     );
     const inputTokenAccountAfter = await getAccount(
       anchor.getProvider().connection,
@@ -113,6 +114,7 @@ describe("swap test", () => {
       },
       { transferFeeBasisPoints: 0, MaxFee: 0 }
     );
+    await waitForNextBlock(program.provider.connection);
     const inputToken = poolState.token0Mint;
     const inputTokenProgram = poolState.token0Program;
     const inputTokenAccountAddr = getAssociatedTokenAddressSync(
@@ -175,6 +177,7 @@ describe("swap test", () => {
       },
       transferFeeConfig
     );
+    await waitForNextBlock(program.provider.connection);
 
     const inputToken = poolState.token0Mint;
     const inputTokenProgram = poolState.token0Program;
