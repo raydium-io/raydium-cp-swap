@@ -25,11 +25,6 @@ import {
 } from "@solana/spl-token";
 import { sendTransaction } from "./index";
 
-export async function printSlot(connection: Connection) {
-  const slot = await connection.getSlot();
-  console.log("Current slot:", slot);
-}
-
 function compareByteArrays(a: Uint8Array, b: Uint8Array): number {
   if (a.length !== b.length) {
     throw new Error(

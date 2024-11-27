@@ -6,20 +6,6 @@ import { assert } from "chai";
 import { getAccount, getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { Connection } from "@solana/web3.js";
 
-export enum PoolStatusBitIndex {
-  Deposit = 0,
-  Withdraw = 1,
-  Swap = 2,
-}
-
-export function checkPoolStatusBit(
-  status: number,
-  bit: PoolStatusBitIndex
-): boolean {
-  const mask = 1 << bit;
-  return (status & mask) === 0; // Returns true if enabled (bit is 0)
-}
-
 export async function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
