@@ -12,9 +12,29 @@ The program assets are in-scope for Raydium’s [Immunefi bug bounty program](ht
 
 ## Environment Setup
 
-1. Install Rust.
-2. Install Solana and then run solana-keygen new to create a keypair at the default location.
-3. Install Anchor.
+1. Install `Rust`
+
+   ```shell
+   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+   rustup default 1.79.0
+   ```
+
+2. Install `Solana `
+
+   ```shell
+   sh -c "$(curl -sSfL https://release.solana.com/v1.17.0/install)"
+   ```
+
+   then run `solana-keygen new` to create a keypair at the default location.
+
+3. install `Anchor`
+
+   ```shell
+   # Installing using Anchor version manager (avm) 
+   cargo install --git https://github.com/coral-xyz/anchor avm --locked --force
+   # Install anchor
+   avm install 0.29.0
+   ```
 
 ## Quickstart
 

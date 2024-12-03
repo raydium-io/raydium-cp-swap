@@ -71,7 +71,7 @@ describe("initialize test", () => {
         anchor.getProvider().connection,
         owner,
         {
-          config_index: 1,
+          config_index: 0,
           tradeFeeRate: new BN(10),
           protocolFeeRate: new BN(1000),
           fundFeeRate: new BN(25000),
@@ -119,7 +119,7 @@ describe("initialize test", () => {
         anchor.getProvider().connection,
         owner,
         {
-          config_index: 1,
+          config_index: 0,
           tradeFeeRate: new BN(10),
           protocolFeeRate: new BN(1000),
           fundFeeRate: new BN(25000),

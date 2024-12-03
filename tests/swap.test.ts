@@ -43,6 +43,7 @@ describe("swap test", () => {
       "processed",
       inputTokenProgram
     );
+    await sleep(1000);
     let amount_in = new BN(100000000);
     await swap_base_input(
       program,
@@ -103,6 +104,7 @@ describe("swap test", () => {
       "processed",
       outputTokenProgram
     );
+    await sleep(1000);
     let amount_out = new BN(100000000);
     await swap_base_output(
       program,
@@ -166,6 +168,7 @@ describe("swap test", () => {
       "processed",
       outputTokenProgram
     );
+    await sleep(1000);
     let amount_out = new BN(100000000);
     await swap_base_output(
       program,
@@ -191,3 +194,7 @@ describe("swap test", () => {
     );
   });
 });
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}

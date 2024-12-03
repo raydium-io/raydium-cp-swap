@@ -68,12 +68,25 @@ export async function createTokenMintAndAssociatedTokenAccount(
   tokenArray.push({ address: token1, program: TOKEN_2022_PROGRAM_ID });
 
   tokenArray.sort(function (x, y) {
-    if (x.address < y.address) {
+    const buffer1 = x.address.toBuffer();
+    const buffer2 = y.address.toBuffer();
+
+    for (let i = 0; i < buffer1.length && i < buffer2.length; i++) {
+      if (buffer1[i] < buffer2[i]) {
+        return -1;
+      }
+      if (buffer1[i] > buffer2[i]) {
+        return 1;
+      }
+    }
+
+    if (buffer1.length < buffer2.length) {
       return -1;
     }
-    if (x.address > y.address) {
+    if (buffer1.length > buffer2.length) {
       return 1;
     }
+
     return 0;
   });
 
