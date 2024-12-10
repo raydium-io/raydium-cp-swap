@@ -101,7 +101,7 @@ pub struct Initialize<'info> {
     )]
     pub creator_lp_token: Box<InterfaceAccount<'info, TokenAccount>>,
 
-    /// CHECK: Token_0 vault for the pool
+    /// CHECK: Token_0 vault for the pool, create by contract
     #[account(
         mut,
         seeds = [
@@ -113,7 +113,7 @@ pub struct Initialize<'info> {
     )]
     pub token_0_vault: UncheckedAccount<'info>,
 
-    /// CHECK: Token_1 vault for the pool
+    /// CHECK: Token_1 vault for the pool, create by contract
     #[account(
         mut,
         seeds = [
