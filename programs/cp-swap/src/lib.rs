@@ -88,18 +88,18 @@ pub mod raydium_cp_swap {
     /// * `fund_fee_rate`- The new fund fee rate of amm config, be set when `param` is 2
     /// * `new_owner`- The config's new owner, be set when `param` is 3
     /// * `new_fund_owner`- The config's new fund owner, be set when `param` is 4
-    /// * `param`- The vaule can be 0 | 1 | 2 | 3 | 4, otherwise will report a error
+    /// * `param`- The value can be 0 | 1 | 2 | 3 | 4, otherwise will report a error
     ///
     pub fn update_amm_config(ctx: Context<UpdateAmmConfig>, param: u8, value: u64) -> Result<()> {
         instructions::update_amm_config(ctx, param, value)
     }
 
-    /// Update pool status for given vaule
+    /// Update pool status for given value
     ///
     /// # Arguments
     ///
     /// * `ctx`- The context of accounts
-    /// * `status` - The vaule of status
+    /// * `status` - The value of status
     ///
     pub fn update_pool_status(ctx: Context<UpdatePoolStatus>, status: u8) -> Result<()> {
         instructions::update_pool_status(ctx, status)

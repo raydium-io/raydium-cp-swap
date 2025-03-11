@@ -51,9 +51,9 @@ pub struct PoolState {
 
     pub auth_bump: u8,
     /// Bitwise representation of the state of the pool
-    /// bit0, 1: disable deposit(vaule is 1), 0: normal
-    /// bit1, 1: disable withdraw(vaule is 2), 0: normal
-    /// bit2, 1: disable swap(vaule is 4), 0: normal
+    /// bit0, 1: disable deposit(value is 1), 0: normal
+    /// bit1, 1: disable withdraw(value is 2), 0: normal
+    /// bit2, 1: disable swap(value is 4), 0: normal
     pub status: u8,
 
     pub lp_mint_decimals: u8,
