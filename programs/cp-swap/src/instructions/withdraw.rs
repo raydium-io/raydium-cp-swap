@@ -99,6 +99,7 @@ pub fn withdraw(
     minimum_token_0_amount: u64,
     minimum_token_1_amount: u64,
 ) -> Result<()> {
+    require_gt!(lp_token_amount,0);
     require_gt!(ctx.accounts.lp_mint.supply, 0);
     let pool_id = ctx.accounts.pool_state.key();
     let pool_state = &mut ctx.accounts.pool_state.load_mut()?;
@@ -117,7 +118,9 @@ pub fn withdraw(
         RoundDirection::Floor,
     )
     .ok_or(ErrorCode::ZeroTradingTokens)?;
-
+    if results.token_0_amount == 0 || results.token_1_amount == 0 {
+        return err!(ErrorCode::ZeroTradingTokens);
+    }
     let token_0_amount = u64::try_from(results.token_0_amount).unwrap();
     let token_0_amount = std::cmp::min(total_token_0_amount, token_0_amount);
     let (receive_token_0_amount, token_0_transfer_fee) = {

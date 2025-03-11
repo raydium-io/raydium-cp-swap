@@ -11,6 +11,7 @@ pub fn swap_base_output(
     max_amount_in: u64,
     amount_out_less_fee: u64,
 ) -> Result<()> {
+    require_gt!(amount_out_less_fee, 0);
     let block_timestamp = solana_program::clock::Clock::get()?.unix_timestamp as u64;
     let pool_id = ctx.accounts.pool_state.key();
     let pool_state = &mut ctx.accounts.pool_state.load_mut()?;

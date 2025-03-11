@@ -90,6 +90,7 @@ pub fn deposit(
     maximum_token_0_amount: u64,
     maximum_token_1_amount: u64,
 ) -> Result<()> {
+    require_gt!(lp_token_amount, 0);
     let pool_id = ctx.accounts.pool_state.key();
     let pool_state = &mut ctx.accounts.pool_state.load_mut()?;
     if !pool_state.get_status_by_bit(PoolStatusBitIndex::Deposit) {
@@ -107,7 +108,9 @@ pub fn deposit(
         RoundDirection::Ceiling,
     )
     .ok_or(ErrorCode::ZeroTradingTokens)?;
-
+    if results.token_0_amount == 0 || results.token_1_amount == 0 {
+        return err!(ErrorCode::ZeroTradingTokens);
+    }
     let token_0_amount = u64::try_from(results.token_0_amount).unwrap();
     let (transfer_token_0_amount, transfer_token_0_fee) = {
         let transfer_fee =
