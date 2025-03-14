@@ -11,7 +11,7 @@ pub const OBSERVATION_UPDATE_DURATION_DEFAULT: u64 = 15;
 
 /// The element of observations in ObservationState
 #[zero_copy(unsafe)]
-#[repr(packed)]
+#[repr(C, packed)]
 #[derive(Default, Debug)]
 pub struct Observation {
     /// The block timestamp of the observation
@@ -26,7 +26,7 @@ impl Observation {
 }
 
 #[account(zero_copy(unsafe))]
-#[repr(packed)]
+#[repr(C, packed)]
 #[cfg_attr(feature = "client", derive(Debug))]
 pub struct ObservationState {
     /// Whether the ObservationState is initialized
@@ -124,4 +124,17 @@ pub fn block_timestamp_mock() -> u64 {
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_secs()
+}
+
+#[cfg(test)]
+pub mod observation_test {
+    use super::*;
+
+    #[test]
+    fn observation_state_size_test() {
+        assert_eq!(
+            std::mem::size_of::<ObservationState>(),
+            ObservationState::LEN - 8
+        )
+    }
 }
