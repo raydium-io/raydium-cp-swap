@@ -32,7 +32,7 @@ impl Fees {
         )
     }
 
-    /// Calculate the owner trading fee in trading tokens
+    /// Calculate the owner protocol fee in trading tokens
     pub fn protocol_fee(amount: u128, protocol_fee_rate: u64) -> Option<u128> {
         floor_div(
             amount,
@@ -41,7 +41,7 @@ impl Fees {
         )
     }
 
-    /// Calculate the owner trading fee in trading tokens
+    /// Calculate the owner fund fee in trading tokens
     pub fn fund_fee(amount: u128, fund_fee_rate: u64) -> Option<u128> {
         floor_div(
             amount,

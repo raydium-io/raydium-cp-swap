@@ -21,7 +21,7 @@ pub enum PoolStatusBitFlag {
 }
 
 #[account(zero_copy(unsafe))]
-#[repr(packed)]
+#[repr(C, packed)]
 #[derive(Default, Debug)]
 pub struct PoolState {
     /// Which config the pool belongs
@@ -51,9 +51,9 @@ pub struct PoolState {
 
     pub auth_bump: u8,
     /// Bitwise representation of the state of the pool
-    /// bit0, 1: disable deposit(vaule is 1), 0: normal
-    /// bit1, 1: disable withdraw(vaule is 2), 0: normal
-    /// bit2, 1: disable swap(vaule is 4), 0: normal
+    /// bit0, 1: disable deposit(value is 1), 0: normal
+    /// bit1, 1: disable withdraw(value is 2), 0: normal
+    /// bit2, 1: disable swap(value is 4), 0: normal
     pub status: u8,
 
     pub lp_mint_decimals: u8,
@@ -162,6 +162,11 @@ impl PoolState {
 #[cfg(test)]
 pub mod pool_test {
     use super::*;
+
+    #[test]
+    fn pool_state_size_test() {
+        assert_eq!(std::mem::size_of::<PoolState>(), PoolState::LEN - 8)
+    }
 
     mod pool_status_test {
         use super::*;

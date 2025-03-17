@@ -1,8 +1,9 @@
 [package]
 name = "raydium-cp-swap"
-version = "0.1.0"
-description = "Created with Anchor"
+version = "0.2.0"
+description = "Raydium constant product AMM, supports Token2022 and without Openbook"
 edition = "2021"
+publish = false
 
 [lib]
 crate-type = ["cdylib", "lib"]
@@ -10,29 +11,27 @@ name = "raydium_cp_swap"
 
 [features]
 no-entrypoint = []
-no-idl = []
 no-log-ix-name = []
 cpi = ["no-entrypoint"]
 default = []
 enable-log = []
 devnet = []
 client = []
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
 
 [dependencies]
-anchor-lang = { version = "0.29.0", features = ["init-if-needed"] }
-anchor-spl = { version = "0.29.0", features = ["metadata"] }
-spl-token = { version = "4.0.0", features = ["no-entrypoint"] }
-spl-math = { version = "0.2", features = ["no-entrypoint"] }
-spl-memo = "4.0.0"
-uint = "0.9.1"
+anchor-lang = { version = "0.31.0", features = ["init-if-needed"] }
+anchor-spl = { version = "0.31.0", features = ["memo", "metadata"] }
+spl-math = { version = "0.3", features = ["no-entrypoint"] }
+uint = "0.10.0"
 solana-security-txt = "1.1.1"
 bytemuck = { version = "1.4.0", features = ["derive", "min_const_generics"] }
 arrayref = { version = "0.3.6" }
 
 [dev-dependencies]
-quickcheck = "0.9"
+quickcheck = "1.0.3"
 proptest = "1.0"
-rand = "0.8.5"
+rand = "0.9.0"
 
 [profile.release]
 lto = "fat"
