@@ -121,13 +121,14 @@ pub fn handle_program_log(
             // not log event
             return Ok((None, false));
         }
-        let borsh_bytes = match anchor_lang::__private::base64::decode(log) {
-            Ok(borsh_bytes) => borsh_bytes,
-            _ => {
-                println!("Could not base64 decode log: {}", log);
-                return Ok((None, false));
-            }
-        };
+        let borsh_bytes =
+            match base64::Engine::decode(&base64::engine::general_purpose::STANDARD, log) {
+                Ok(borsh_bytes) => borsh_bytes,
+                _ => {
+                    println!("Could not base64 decode log: {}", log);
+                    return Ok((None, false));
+                }
+            };
 
         if borsh_bytes.len() < DISCRIMINATOR_LEN {
             return Err(ClientError::LogParseError(
@@ -277,7 +278,10 @@ pub fn handle_program_instruction(
             data = hex::decode(instr_data).unwrap();
         }
         InstructionDecodeType::Base64 => {
-            let borsh_bytes = match anchor_lang::__private::base64::decode(instr_data) {
+            let borsh_bytes = match base64::Engine::decode(
+                &base64::engine::general_purpose::STANDARD,
+                instr_data,
+            ) {
                 Ok(borsh_bytes) => borsh_bytes,
                 _ => {
                     println!("Could not base64 decode instruction: {}", instr_data);
