@@ -26,11 +26,11 @@ test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.test.ts"
 [test]
 startup_wait = 10000
 
-[test.validator]
-url = "https://api.mainnet-beta.solana.com"
+# [test.validator]
+# url = "https://rpc.ankr.com/solana_devnet/60e45c8af039a4a256e90df5fa0ce4f42cb349e47ae180e38bdb41a1f212e6d8"
 
-[[test.validator.clone]]
-address = "DNXgeM9EiiaAbaWvwjHj9fQQLAX5ZsfHyvmYUNRAdNC8" # pool fee receiver
+# [[test.validator.clone]]
+# address = "DNXgeM9EiiaAbaWvwjHj9fQQLAX5ZsfHyvmYUNRAdNC8" # pool fee receiver
 
-[[test.validator.clone]]
-address = "D4FPEruKEHrG5TenZ2mpDGEfu1iUvTiqBxvpU8HLBvC2" # index 0 AMM Config account
+# [[test.validator.clone]]
+# address = "D4FPEruKEHrG5TenZ2mpDGEfu1iUvTiqBxvpU8HLBvC2" # index 0 AMM Config account
