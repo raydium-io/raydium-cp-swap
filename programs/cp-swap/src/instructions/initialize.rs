@@ -232,6 +232,8 @@ pub fn initialize(
         ctx.accounts.token_0_program.to_account_info(),
         init_amount_0,
         ctx.accounts.token_0_mint.decimals,
+        token::get_transfer_fee(&ctx.accounts.token_0_mint.to_account_info(), init_amount_0)
+            .unwrap(),
     )?;
 
     transfer_from_user_to_pool_vault(
@@ -242,6 +244,8 @@ pub fn initialize(
         ctx.accounts.token_1_program.to_account_info(),
         init_amount_1,
         ctx.accounts.token_1_mint.decimals,
+        token::get_transfer_fee(&ctx.accounts.token_1_mint.to_account_info(), init_amount_1)
+            .unwrap(),
     )?;
 
     let token_0_vault =

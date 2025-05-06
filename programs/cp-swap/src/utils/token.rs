@@ -11,7 +11,9 @@ use anchor_spl::{
                 ExtensionType, StateWithExtensions,
             },
         },
+        Token2022,
     },
+    token_2022_extensions::{transfer_checked_with_fee, TransferCheckedWithFee},
     token_interface::{
         initialize_account3, spl_token_2022::extension::BaseStateWithExtensions,
         InitializeAccount3, Mint,
@@ -34,23 +36,42 @@ pub fn transfer_from_user_to_pool_vault<'a>(
     token_program: AccountInfo<'a>,
     amount: u64,
     mint_decimals: u8,
+    transfer_fee: u64,
 ) -> Result<()> {
     if amount == 0 {
         return Ok(());
     }
-    token_2022::transfer_checked(
-        CpiContext::new(
-            token_program.to_account_info(),
-            token_2022::TransferChecked {
-                from,
-                to: to_vault,
-                authority,
-                mint,
-            },
-        ),
-        amount,
-        mint_decimals,
-    )
+    if token_program.key() == Token2022::id() {
+        transfer_checked_with_fee(
+            CpiContext::new(
+                token_program.clone(),
+                TransferCheckedWithFee {
+                    token_program_id: token_program,
+                    source: from,
+                    mint: mint.to_account_info(),
+                    destination: to_vault.to_account_info(),
+                    authority: authority.to_account_info(),
+                },
+            ),
+            amount,
+            mint_decimals,
+            transfer_fee,
+        )
+    } else {
+        token_2022::transfer_checked(
+            CpiContext::new(
+                token_program.to_account_info(),
+                token_2022::TransferChecked {
+                    from,
+                    to: to_vault,
+                    authority,
+                    mint,
+                },
+            ),
+            amount,
+            mint_decimals,
+        )
+    }
 }
 
 pub fn transfer_from_pool_vault_to_user<'a>(
@@ -61,25 +82,45 @@ pub fn transfer_from_pool_vault_to_user<'a>(
     token_program: AccountInfo<'a>,
     amount: u64,
     mint_decimals: u8,
+    transfer_fee: u64,
     signer_seeds: &[&[&[u8]]],
 ) -> Result<()> {
     if amount == 0 {
         return Ok(());
     }
-    token_2022::transfer_checked(
-        CpiContext::new_with_signer(
-            token_program.to_account_info(),
-            token_2022::TransferChecked {
-                from: from_vault,
-                to,
-                authority,
-                mint,
-            },
-            signer_seeds,
-        ),
-        amount,
-        mint_decimals,
-    )
+    if token_program.key() == Token2022::id() {
+        transfer_checked_with_fee(
+            CpiContext::new_with_signer(
+                token_program.to_account_info(),
+                TransferCheckedWithFee {
+                    token_program_id: token_program,
+                    source: from_vault,
+                    destination: to,
+                    authority,
+                    mint,
+                },
+                signer_seeds,
+            ),
+            amount,
+            mint_decimals,
+            transfer_fee,
+        )
+    } else {
+        token_2022::transfer_checked(
+            CpiContext::new_with_signer(
+                token_program.to_account_info(),
+                token_2022::TransferChecked {
+                    from: from_vault,
+                    to,
+                    authority,
+                    mint,
+                },
+                signer_seeds,
+            ),
+            amount,
+            mint_decimals,
+        )
+    }
 }
 
 /// Issue a spl_token `MintTo` instruction.

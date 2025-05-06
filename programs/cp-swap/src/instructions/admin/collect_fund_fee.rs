@@ -100,6 +100,7 @@ pub fn collect_fund_fee(
         },
         amount_0,
         ctx.accounts.vault_0_mint.decimals,
+        get_transfer_fee(&ctx.accounts.vault_0_mint.to_account_info(), amount_0).unwrap(),
         &[&[crate::AUTH_SEED.as_bytes(), &[auth_bump]]],
     )?;
 
@@ -115,6 +116,7 @@ pub fn collect_fund_fee(
         },
         amount_1,
         ctx.accounts.vault_1_mint.decimals,
+        get_transfer_fee(&ctx.accounts.vault_1_mint.to_account_info(), amount_1).unwrap(),
         &[&[crate::AUTH_SEED.as_bytes(), &[auth_bump]]],
     )?;
 

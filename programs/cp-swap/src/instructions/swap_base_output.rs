@@ -173,6 +173,7 @@ pub fn swap_base_output(
         ctx.accounts.input_token_program.to_account_info(),
         input_transfer_amount,
         ctx.accounts.input_token_mint.decimals,
+        input_transfer_fee,
     )?;
 
     transfer_from_pool_vault_to_user(
@@ -183,6 +184,7 @@ pub fn swap_base_output(
         ctx.accounts.output_token_program.to_account_info(),
         output_transfer_amount,
         ctx.accounts.output_token_mint.decimals,
+        output_transfer_fee,
         &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
     )?;
 
