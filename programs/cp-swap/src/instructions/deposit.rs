@@ -173,7 +173,6 @@ pub fn deposit(
         },
         transfer_token_0_amount,
         ctx.accounts.vault_0_mint.decimals,
-        transfer_token_0_fee,
     )?;
 
     transfer_from_user_to_pool_vault(
@@ -188,7 +187,6 @@ pub fn deposit(
         },
         transfer_token_1_amount,
         ctx.accounts.vault_1_mint.decimals,
-        transfer_token_1_fee,
     )?;
 
     pool_state.lp_supply = pool_state.lp_supply.checked_add(lp_token_amount).unwrap();

@@ -197,7 +197,6 @@ pub fn withdraw(
         },
         token_0_amount,
         ctx.accounts.vault_0_mint.decimals,
-        token_0_transfer_fee,
         &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
     )?;
 
@@ -213,7 +212,6 @@ pub fn withdraw(
         },
         token_1_amount,
         ctx.accounts.vault_1_mint.decimals,
-        token_1_transfer_fee,
         &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
     )?;
     pool_state.recent_epoch = Clock::get()?.epoch;

@@ -11,9 +11,7 @@ use anchor_spl::{
                 ExtensionType, StateWithExtensions,
             },
         },
-        Token2022,
     },
-    token_2022_extensions::{transfer_checked_with_fee, TransferCheckedWithFee},
     token_interface::{
         initialize_account3, spl_token_2022::extension::BaseStateWithExtensions,
         InitializeAccount3, Mint,
@@ -36,42 +34,23 @@ pub fn transfer_from_user_to_pool_vault<'a>(
     token_program: AccountInfo<'a>,
     amount: u64,
     mint_decimals: u8,
-    transfer_fee: u64,
 ) -> Result<()> {
     if amount == 0 {
         return Ok(());
     }
-    if token_program.key() == Token2022::id() {
-        transfer_checked_with_fee(
-            CpiContext::new(
-                token_program.clone(),
-                TransferCheckedWithFee {
-                    token_program_id: token_program,
-                    source: from,
-                    mint: mint.to_account_info(),
-                    destination: to_vault.to_account_info(),
-                    authority: authority.to_account_info(),
-                },
-            ),
-            amount,
-            mint_decimals,
-            transfer_fee,
-        )
-    } else {
-        token_2022::transfer_checked(
-            CpiContext::new(
-                token_program.to_account_info(),
-                token_2022::TransferChecked {
-                    from,
-                    to: to_vault,
-                    authority,
-                    mint,
-                },
-            ),
-            amount,
-            mint_decimals,
-        )
-    }
+    token_2022::transfer_checked(
+        CpiContext::new(
+            token_program.to_account_info(),
+            token_2022::TransferChecked {
+                from,
+                to: to_vault,
+                authority,
+                mint,
+            },
+        ),
+        amount,
+        mint_decimals,
+    )
 }
 
 pub fn transfer_from_pool_vault_to_user<'a>(
@@ -82,45 +61,25 @@ pub fn transfer_from_pool_vault_to_user<'a>(
     token_program: AccountInfo<'a>,
     amount: u64,
     mint_decimals: u8,
-    transfer_fee: u64,
     signer_seeds: &[&[&[u8]]],
 ) -> Result<()> {
     if amount == 0 {
         return Ok(());
     }
-    if token_program.key() == Token2022::id() {
-        transfer_checked_with_fee(
-            CpiContext::new_with_signer(
-                token_program.to_account_info(),
-                TransferCheckedWithFee {
-                    token_program_id: token_program,
-                    source: from_vault,
-                    destination: to,
-                    authority,
-                    mint,
-                },
-                signer_seeds,
-            ),
-            amount,
-            mint_decimals,
-            transfer_fee,
-        )
-    } else {
-        token_2022::transfer_checked(
-            CpiContext::new_with_signer(
-                token_program.to_account_info(),
-                token_2022::TransferChecked {
-                    from: from_vault,
-                    to,
-                    authority,
-                    mint,
-                },
-                signer_seeds,
-            ),
-            amount,
-            mint_decimals,
-        )
-    }
+    token_2022::transfer_checked(
+        CpiContext::new_with_signer(
+            token_program.to_account_info(),
+            token_2022::TransferChecked {
+                from: from_vault,
+                to,
+                authority,
+                mint,
+            },
+            signer_seeds,
+        ),
+        amount,
+        mint_decimals,
+    )
 }
 
 /// Issue a spl_token `MintTo` instruction.
@@ -186,9 +145,16 @@ pub fn get_transfer_inverse_fee(mint_info: &AccountInfo, post_fee_amount: u64) -
         if u16::from(transfer_fee.transfer_fee_basis_points) == MAX_FEE_BASIS_POINTS {
             u64::from(transfer_fee.maximum_fee)
         } else {
-            transfer_fee_config
+            let transfer_fee = transfer_fee_config
                 .calculate_inverse_epoch_fee(epoch, post_fee_amount)
-                .unwrap()
+                .unwrap();
+            let transfer_fee_for_check = transfer_fee_config
+                .calculate_epoch_fee(epoch, post_fee_amount.checked_add(transfer_fee).unwrap())
+                .unwrap();
+            if transfer_fee != transfer_fee_for_check {
+                return err!(ErrorCode::TransferFeeCalculateNotMatch);
+            }
+            transfer_fee
         }
     } else {
         0
