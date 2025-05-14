@@ -10,6 +10,7 @@ use anchor_lang::{
 };
 use anchor_spl::{
     associated_token::AssociatedToken,
+    token::spl_token,
     token::Token,
     token_2022::spl_token_2022,
     token_interface::{Mint, TokenAccount, TokenInterface},
@@ -25,7 +26,8 @@ pub struct Initialize<'info> {
     /// Which config the pool belongs to.
     pub amm_config: Box<Account<'info, AmmConfig>>,
 
-    /// CHECK: pool vault and lp mint authority
+    /// CHECK:
+    /// pool vault and lp mint authority
     #[account(
         seeds = [
             crate::AUTH_SEED.as_bytes(),
@@ -47,7 +49,7 @@ pub struct Initialize<'info> {
     #[account(mut)]
     pub pool_state: UncheckedAccount<'info>,
 
-    /// Token_0 mint, the key must smaller then token_1 mint.
+    /// Token_0 mint, the key must smaller than token_1 mint.
     #[account(
         constraint = token_0_mint.key() < token_1_mint.key(),
         mint::token_program = token_0_program,
@@ -128,7 +130,7 @@ pub struct Initialize<'info> {
     /// create pool fee account
     #[account(
         mut,
-        address= crate::create_pool_fee_reveiver::id(),
+        address= crate::create_pool_fee_reveiver::ID,
     )]
     pub create_pool_fee: Box<InterfaceAccount<'info, TokenAccount>>,
 

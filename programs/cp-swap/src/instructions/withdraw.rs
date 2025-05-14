@@ -4,8 +4,11 @@ use crate::error::ErrorCode;
 use crate::states::*;
 use crate::utils::token::*;
 use anchor_lang::prelude::*;
-use anchor_spl::token::Token;
-use anchor_spl::token_interface::{Mint, Token2022, TokenAccount};
+use anchor_spl::{
+    memo::spl_memo,
+    token::Token,
+    token_interface::{Mint, Token2022, TokenAccount},
+};
 
 #[derive(Accounts)]
 pub struct Withdraw<'info> {
@@ -32,7 +35,7 @@ pub struct Withdraw<'info> {
     )]
     pub owner_lp_token: Box<InterfaceAccount<'info, TokenAccount>>,
 
-    /// The token account for receive token_0, 
+    /// The token account for receive token_0,
     #[account(
         mut,
         token::mint = token_0_vault.mint,
@@ -99,7 +102,7 @@ pub fn withdraw(
     minimum_token_0_amount: u64,
     minimum_token_1_amount: u64,
 ) -> Result<()> {
-    require_gt!(lp_token_amount,0);
+    require_gt!(lp_token_amount, 0);
     require_gt!(ctx.accounts.lp_mint.supply, 0);
     let pool_id = ctx.accounts.pool_state.key();
     let pool_state = &mut ctx.accounts.pool_state.load_mut()?;
@@ -124,7 +127,8 @@ pub fn withdraw(
     let token_0_amount = u64::try_from(results.token_0_amount).unwrap();
     let token_0_amount = std::cmp::min(total_token_0_amount, token_0_amount);
     let (receive_token_0_amount, token_0_transfer_fee) = {
-        let transfer_fee = get_transfer_fee(&ctx.accounts.vault_0_mint.to_account_info(), token_0_amount)?;
+        let transfer_fee =
+            get_transfer_fee(&ctx.accounts.vault_0_mint.to_account_info(), token_0_amount)?;
         (
             token_0_amount.checked_sub(transfer_fee).unwrap(),
             transfer_fee,
@@ -134,7 +138,8 @@ pub fn withdraw(
     let token_1_amount = u64::try_from(results.token_1_amount).unwrap();
     let token_1_amount = std::cmp::min(total_token_1_amount, token_1_amount);
     let (receive_token_1_amount, token_1_transfer_fee) = {
-        let transfer_fee = get_transfer_fee(&ctx.accounts.vault_1_mint.to_account_info(), token_1_amount)?;
+        let transfer_fee =
+            get_transfer_fee(&ctx.accounts.vault_1_mint.to_account_info(), token_1_amount)?;
         (
             token_1_amount.checked_sub(transfer_fee).unwrap(),
             transfer_fee,

@@ -25,19 +25,19 @@ declare_id!("CPMDWBwJDtYax9qW7AyRuVC19Cc4L4Vcy4n2BHAbHkCW");
 declare_id!("CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C");
 
 pub mod admin {
-    use anchor_lang::prelude::declare_id;
+    use super::{pubkey, Pubkey};
     #[cfg(feature = "devnet")]
-    declare_id!("adMCyoCgfkg7bQiJ9aBJ59H3BXLY3r5LNLfPpQfMzBe");
+    pub const ID: Pubkey = pubkey!("adMCyoCgfkg7bQiJ9aBJ59H3BXLY3r5LNLfPpQfMzBe");
     #[cfg(not(feature = "devnet"))]
-    declare_id!("GThUX1Atko4tqhN2NaiTazWSeFWMuiUvfFnyJyUghFMJ");
+    pub const ID: Pubkey = pubkey!("GThUX1Atko4tqhN2NaiTazWSeFWMuiUvfFnyJyUghFMJ");
 }
 
 pub mod create_pool_fee_reveiver {
-    use anchor_lang::prelude::declare_id;
+    use super::{pubkey, Pubkey};
     #[cfg(feature = "devnet")]
-    declare_id!("G11FKBRaAkHAKuLCgLM6K6NUc9rTjPAznRCjZifrTQe2");
+    pub const ID: Pubkey = pubkey!("G11FKBRaAkHAKuLCgLM6K6NUc9rTjPAznRCjZifrTQe2");
     #[cfg(not(feature = "devnet"))]
-    declare_id!("DNXgeM9EiiaAbaWvwjHj9fQQLAX5ZsfHyvmYUNRAdNC8");
+    pub const ID: Pubkey = pubkey!("DNXgeM9EiiaAbaWvwjHj9fQQLAX5ZsfHyvmYUNRAdNC8");
 }
 
 pub const AUTH_SEED: &str = "vault_and_lp_mint_auth_seed";
@@ -46,14 +46,14 @@ pub const AUTH_SEED: &str = "vault_and_lp_mint_auth_seed";
 pub mod raydium_cp_swap {
     use super::*;
 
-    // The configuation of AMM protocol, include trade fee and protocol fee
+    // The configuration of AMM protocol, include trade fee and protocol fee
     /// # Arguments
     ///
     /// * `ctx`- The accounts needed by instruction.
     /// * `index` - The index of amm config, there may be multiple config.
     /// * `trade_fee_rate` - Trade fee rate, can be changed.
-    /// * `protocol_fee_rate` - The rate of protocol fee within tarde fee.
-    /// * `fund_fee_rate` - The rate of fund fee within tarde fee.
+    /// * `protocol_fee_rate` - The rate of protocol fee within trade fee.
+    /// * `fund_fee_rate` - The rate of fund fee within trade fee.
     ///
     pub fn create_amm_config(
         ctx: Context<CreateAmmConfig>,
@@ -88,18 +88,18 @@ pub mod raydium_cp_swap {
     /// * `fund_fee_rate`- The new fund fee rate of amm config, be set when `param` is 2
     /// * `new_owner`- The config's new owner, be set when `param` is 3
     /// * `new_fund_owner`- The config's new fund owner, be set when `param` is 4
-    /// * `param`- The vaule can be 0 | 1 | 2 | 3 | 4, otherwise will report a error
+    /// * `param`- The value can be 0 | 1 | 2 | 3 | 4, otherwise will report a error
     ///
     pub fn update_amm_config(ctx: Context<UpdateAmmConfig>, param: u8, value: u64) -> Result<()> {
         instructions::update_amm_config(ctx, param, value)
     }
 
-    /// Update pool status for given vaule
+    /// Update pool status for given value
     ///
     /// # Arguments
     ///
     /// * `ctx`- The context of accounts
-    /// * `status` - The vaule of status
+    /// * `status` - The value of status
     ///
     pub fn update_pool_status(ctx: Context<UpdatePoolStatus>, status: u8) -> Result<()> {
         instructions::update_pool_status(ctx, status)
@@ -155,7 +155,7 @@ pub mod raydium_cp_swap {
         instructions::initialize(ctx, init_amount_0, init_amount_1, open_time)
     }
 
-    /// Creates a pool for the given token pair and the initial price
+    /// Deposit lp token to the pool
     ///
     /// # Arguments
     ///
@@ -178,7 +178,7 @@ pub mod raydium_cp_swap {
         )
     }
 
-    /// Withdraw lp for token0 ande token1
+    /// Withdraw lp for token0 and token1
     ///
     /// # Arguments
     ///

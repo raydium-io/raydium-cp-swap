@@ -6,7 +6,7 @@ use anchor_lang::prelude::*;
 #[derive(Accounts)]
 pub struct UpdateAmmConfig<'info> {
     /// The amm config owner or admin
-    #[account(address = crate::admin::id() @ ErrorCode::InvalidOwner)]
+    #[account(address = crate::admin::ID @ ErrorCode::InvalidOwner)]
     pub owner: Signer<'info>,
 
     /// Amm config account to be changed

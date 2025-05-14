@@ -12,7 +12,7 @@ use solana_transaction_status::{
 
 const PROGRAM_LOG: &str = "Program log: ";
 const PROGRAM_DATA: &str = "Program data: ";
-
+const DISCRIMINATOR_LEN: usize = 8;
 pub enum InstructionDecodeType {
     BaseHex,
     Base64,
@@ -121,21 +121,23 @@ pub fn handle_program_log(
             // not log event
             return Ok((None, false));
         }
-        let borsh_bytes = match anchor_lang::__private::base64::decode(log) {
-            Ok(borsh_bytes) => borsh_bytes,
-            _ => {
-                println!("Could not base64 decode log: {}", log);
-                return Ok((None, false));
-            }
-        };
+        let borsh_bytes =
+            match base64::Engine::decode(&base64::engine::general_purpose::STANDARD, log) {
+                Ok(borsh_bytes) => borsh_bytes,
+                _ => {
+                    println!("Could not base64 decode log: {}", log);
+                    return Ok((None, false));
+                }
+            };
 
-        let mut slice: &[u8] = &borsh_bytes[..];
-        let disc: [u8; 8] = {
-            let mut disc = [0; 8];
-            disc.copy_from_slice(&borsh_bytes[..8]);
-            slice = &slice[8..];
-            disc
-        };
+        if borsh_bytes.len() < DISCRIMINATOR_LEN {
+            return Err(ClientError::LogParseError(
+                format!("log data is too short: {}", log).to_string(),
+            ));
+        }
+        let disc = &borsh_bytes[..DISCRIMINATOR_LEN];
+        let mut slice: &[u8] = &borsh_bytes[DISCRIMINATOR_LEN..];
+
         match disc {
             SwapEvent::DISCRIMINATOR => {
                 println!("{:#?}", decode_event::<SwapEvent>(&mut slice)?);
@@ -276,7 +278,10 @@ pub fn handle_program_instruction(
             data = hex::decode(instr_data).unwrap();
         }
         InstructionDecodeType::Base64 => {
-            let borsh_bytes = match anchor_lang::__private::base64::decode(instr_data) {
+            let borsh_bytes = match base64::Engine::decode(
+                &base64::engine::general_purpose::STANDARD,
+                instr_data,
+            ) {
                 Ok(borsh_bytes) => borsh_bytes,
                 _ => {
                     println!("Could not base64 decode instruction: {}", instr_data);
@@ -297,14 +302,13 @@ pub fn handle_program_instruction(
         }
     }
 
-    let mut ix_data: &[u8] = &data[..];
-    let disc: [u8; 8] = {
-        let mut disc = [0; 8];
-        disc.copy_from_slice(&data[..8]);
-        ix_data = &ix_data[8..];
-        disc
-    };
-    // println!("{:?}", disc);
+    if data.len() < DISCRIMINATOR_LEN {
+        return Err(ClientError::LogParseError(
+            format!("instruction data is too short: {}", instr_data).to_string(),
+        ));
+    }
+    let disc = &data[..DISCRIMINATOR_LEN];
+    let mut ix_data: &[u8] = &data[DISCRIMINATOR_LEN..];
 
     match disc {
         instruction::CreateAmmConfig::DISCRIMINATOR => {

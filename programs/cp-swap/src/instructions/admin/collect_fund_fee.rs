@@ -9,7 +9,7 @@ use anchor_spl::token_interface::TokenAccount;
 #[derive(Accounts)]
 pub struct CollectFundFee<'info> {
     /// Only admin or fund_owner can collect fee now
-    #[account(constraint = (owner.key() == amm_config.fund_owner || owner.key() == crate::admin::id()) @ ErrorCode::InvalidOwner)]
+    #[account(constraint = (owner.key() == amm_config.fund_owner || owner.key() == crate::admin::ID) @ ErrorCode::InvalidOwner)]
     pub owner: Signer<'info>,
 
     /// CHECK: pool vault and lp mint authority
