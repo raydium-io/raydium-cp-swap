@@ -16,13 +16,13 @@ The program assets are in-scope for Raydium’s [Immunefi bug bounty program](ht
 
    ```shell
    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-   rustup default 1.79.0
+   rustup default 1.81.0
    ```
 
 2. Install `Solana `
 
    ```shell
-   sh -c "$(curl -sSfL https://release.solana.com/v1.17.0/install)"
+   sh -c "$(curl -sSfL https://release.anza.xyz/v2.1.0/install)"
    ```
 
    then run `solana-keygen new` to create a keypair at the default location.
@@ -33,7 +33,7 @@ The program assets are in-scope for Raydium’s [Immunefi bug bounty program](ht
    # Installing using Anchor version manager (avm) 
    cargo install --git https://github.com/coral-xyz/anchor avm --locked --force
    # Install anchor
-   avm install 0.29.0
+   avm install 0.31.0
    ```
 
 ## Quickstart
