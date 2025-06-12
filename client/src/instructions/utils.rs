@@ -1,19 +1,30 @@
 use anchor_lang::AccountDeserialize;
 use anyhow::Result;
+use bytemuck::Pod;
 use solana_client::rpc_client::RpcClient;
-use solana_sdk::{account::Account, pubkey::Pubkey};
+use solana_sdk::{account::Account as CliAccount, pubkey::Pubkey};
 use spl_token_2022::{
     extension::{
         transfer_fee::{TransferFeeConfig, MAX_FEE_BASIS_POINTS},
-        BaseState, BaseStateWithExtensions, StateWithExtensionsMut,
+        BaseState, BaseStateWithExtensions, PodStateWithExtensions,
     },
-    state::Mint,
+    pod::{PodAccount, PodMint},
 };
 use std::ops::Mul;
 
-pub fn deserialize_anchor_account<T: AccountDeserialize>(account: &Account) -> Result<T> {
+pub fn deserialize_anchor_account<T: AccountDeserialize>(account: &CliAccount) -> Result<T> {
     let mut data: &[u8] = &account.data;
     T::try_deserialize(&mut data).map_err(Into::into)
+}
+
+pub fn unpack_token(token_data: &[u8]) -> Result<PodStateWithExtensions<PodAccount>> {
+    let token = PodStateWithExtensions::<PodAccount>::unpack(&token_data)?;
+    Ok(token)
+}
+
+pub fn unpack_mint(token_data: &[u8]) -> Result<PodStateWithExtensions<PodMint>> {
+    let mint = PodStateWithExtensions::<PodMint>::unpack(&token_data)?;
+    Ok(mint)
 }
 
 #[derive(Debug)]
@@ -41,10 +52,10 @@ pub fn get_pool_mints_inverse_fee(
     let load_accounts = vec![token_mint_0, token_mint_1];
     let rsps = rpc_client.get_multiple_accounts(&load_accounts).unwrap();
     let epoch = rpc_client.get_epoch_info().unwrap().epoch;
-    let mut mint0_account = rsps[0].clone().ok_or("load mint0 rps error!").unwrap();
-    let mut mint1_account = rsps[1].clone().ok_or("load mint0 rps error!").unwrap();
-    let mint0_state = StateWithExtensionsMut::<Mint>::unpack(&mut mint0_account.data).unwrap();
-    let mint1_state = StateWithExtensionsMut::<Mint>::unpack(&mut mint1_account.data).unwrap();
+    let mint0_account = rsps[0].clone().ok_or("load mint0 rps error!").unwrap();
+    let mint1_account = rsps[1].clone().ok_or("load mint0 rps error!").unwrap();
+    let mint0_state = unpack_mint(&mint0_account.data).unwrap();
+    let mint1_state = unpack_mint(&mint1_account.data).unwrap();
     (
         TransferFeeInfo {
             mint: token_mint_0,
@@ -69,10 +80,10 @@ pub fn get_pool_mints_transfer_fee(
     let load_accounts = vec![token_mint_0, token_mint_1];
     let rsps = rpc_client.get_multiple_accounts(&load_accounts).unwrap();
     let epoch = rpc_client.get_epoch_info().unwrap().epoch;
-    let mut mint0_account = rsps[0].clone().ok_or("load mint0 rps error!").unwrap();
-    let mut mint1_account = rsps[1].clone().ok_or("load mint0 rps error!").unwrap();
-    let mint0_state = StateWithExtensionsMut::<Mint>::unpack(&mut mint0_account.data).unwrap();
-    let mint1_state = StateWithExtensionsMut::<Mint>::unpack(&mut mint1_account.data).unwrap();
+    let mint0_account = rsps[0].clone().ok_or("load mint0 rps error!").unwrap();
+    let mint1_account = rsps[1].clone().ok_or("load mint0 rps error!").unwrap();
+    let mint0_state = unpack_mint(&mint0_account.data).unwrap();
+    let mint1_state = unpack_mint(&mint1_account.data).unwrap();
     (
         TransferFeeInfo {
             mint: token_mint_0,
@@ -88,8 +99,8 @@ pub fn get_pool_mints_transfer_fee(
 }
 
 /// Calculate the fee for output amount
-pub fn get_transfer_inverse_fee<'data, S: BaseState>(
-    account_state: &StateWithExtensionsMut<'data, S>,
+pub fn get_transfer_inverse_fee<'data, S: BaseState + Pod>(
+    account_state: &PodStateWithExtensions<'data, S>,
     epoch: u64,
     post_fee_amount: u64,
 ) -> u64 {
@@ -109,8 +120,8 @@ pub fn get_transfer_inverse_fee<'data, S: BaseState>(
 }
 
 /// Calculate the fee for input amount
-pub fn get_transfer_fee<'data, S: BaseState>(
-    account_state: &StateWithExtensionsMut<'data, S>,
+pub fn get_transfer_fee<'data, S: BaseState + Pod>(
+    account_state: &PodStateWithExtensions<'data, S>,
     epoch: u64,
     pre_fee_amount: u64,
 ) -> u64 {

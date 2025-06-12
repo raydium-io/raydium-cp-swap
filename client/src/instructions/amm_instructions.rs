@@ -21,6 +21,7 @@ pub fn initialize_pool_instr(
     user_token_0_account: Pubkey,
     user_token_1_account: Pubkey,
     create_pool_fee: Pubkey,
+    random_pool_id: Option<Pubkey>,
     init_amount_0: u64,
     init_amount_1: u64,
     open_time: u64,
@@ -37,15 +38,21 @@ pub fn initialize_pool_instr(
         &program.id(),
     );
 
-    let (pool_account_key, __bump) = Pubkey::find_program_address(
-        &[
-            POOL_SEED.as_bytes(),
-            amm_config_key.to_bytes().as_ref(),
-            token_0_mint.to_bytes().as_ref(),
-            token_1_mint.to_bytes().as_ref(),
-        ],
-        &program.id(),
-    );
+    let pool_account_key = if random_pool_id.is_some() {
+        random_pool_id.unwrap()
+    } else {
+        Pubkey::find_program_address(
+            &[
+                POOL_SEED.as_bytes(),
+                amm_config_key.to_bytes().as_ref(),
+                token_0_mint.to_bytes().as_ref(),
+                token_1_mint.to_bytes().as_ref(),
+            ],
+            &program.id(),
+        )
+        .0
+    };
+
     let (authority, __bump) = Pubkey::find_program_address(&[AUTH_SEED.as_bytes()], &program.id());
     let (token_0_vault, __bump) = Pubkey::find_program_address(
         &[
@@ -78,7 +85,7 @@ pub fn initialize_pool_instr(
         &program.id(),
     );
 
-    let instructions = program
+    let mut instructions = program
         .request()
         .accounts(raydium_cp_accounts::Initialize {
             creator: program.payer(),
@@ -111,6 +118,15 @@ pub fn initialize_pool_instr(
             open_time,
         })
         .instructions()?;
+    if random_pool_id.is_some() {
+        // update account signer as true for random pool
+        for account in instructions[0].accounts.iter_mut() {
+            if account.pubkey == random_pool_id.unwrap() {
+                account.is_signer = true;
+                break;
+            }
+        }
+    }
     Ok(instructions)
 }
 
