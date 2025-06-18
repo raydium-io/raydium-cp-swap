@@ -1,4 +1,8 @@
 use anchor_client::{Client, Cluster};
+use anchor_spl::{
+    associated_token::spl_associated_token_account, memo::spl_memo, token::spl_token,
+    token_2022::spl_token_2022,
+};
 use anyhow::Result;
 use solana_sdk::{instruction::Instruction, pubkey::Pubkey, system_program, sysvar};
 

@@ -9,6 +9,7 @@ devnet = ["raydium-cp-swap/devnet"]
 [dependencies]
 anchor-client = { version = "0.31.0" }
 anchor-lang = { version = "0.31.0" }
+anchor-spl = { version = "0.31.0" }
 raydium-cp-swap = { path = "../programs/cp-swap", features = [
     "no-entrypoint",
     "client",
@@ -17,13 +18,6 @@ solana-sdk = "=2.1.0"
 solana-client = "=2.1.0"
 solana-account-decoder = "=2.1.0"
 solana-transaction-status = "=2.1.0"
-spl-token = { version = "7.0.0", features = ["no-entrypoint"] }
-spl-token-client = "0.14.0"
-spl-memo = "6.0.0"
-spl-associated-token-account = { version = "6.0.0", features = [
-    "no-entrypoint",
-] }
-spl-token-2022 = { version = "7.0.0", features = ["no-entrypoint"] }
 clap = { version = "4.1.8", features = ["derive"] }
 anyhow = "1.0.32"
 rand = "0.9.0"

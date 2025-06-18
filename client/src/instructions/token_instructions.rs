@@ -1,5 +1,14 @@
 use super::super::{read_keypair_file, ClientConfig};
 use anchor_client::{Client, Cluster};
+use anchor_spl::{
+    associated_token::spl_associated_token_account,
+    token::spl_token,
+    token_2022::spl_token_2022::{
+        self,
+        extension::{BaseStateWithExtensions, ExtensionType, StateWithExtensionsMut},
+        state::{Account, Mint},
+    },
+};
 use anyhow::Result;
 use solana_client::rpc_client::RpcClient;
 use solana_sdk::{
@@ -10,58 +19,54 @@ use solana_sdk::{
     signature::{Keypair, Signer},
     system_instruction,
 };
-use spl_token_2022::{
-    extension::{BaseStateWithExtensions, ExtensionType, StateWithExtensionsMut},
-    state::{Account, Mint},
-};
-use spl_token_client::token::ExtensionInitializationParams;
+// use spl_token_client::token::ExtensionInitializationParams;
 use std::{rc::Rc, str::FromStr};
 
-pub fn create_and_init_mint_instr(
-    config: &ClientConfig,
-    token_program: Pubkey,
-    mint_key: &Pubkey,
-    mint_authority: &Pubkey,
-    freeze_authority: Option<&Pubkey>,
-    extension_init_params: Vec<ExtensionInitializationParams>,
-    decimals: u8,
-) -> Result<Vec<Instruction>> {
-    let payer = read_keypair_file(&config.payer_path)?;
-    let url = Cluster::Custom(config.http_url.clone(), config.ws_url.clone());
-    // Client.
-    let client = Client::new(url, Rc::new(payer));
-    let program = if token_program == spl_token::id() {
-        client.program(spl_token::id())?
-    } else {
-        client.program(spl_token_2022::id())?
-    };
-    let extension_types = extension_init_params
-        .iter()
-        .map(|e| e.extension())
-        .collect::<Vec<_>>();
-    let space = ExtensionType::try_calculate_account_len::<Mint>(&extension_types)?;
+// pub fn create_and_init_mint_instr(
+//     config: &ClientConfig,
+//     token_program: Pubkey,
+//     mint_key: &Pubkey,
+//     mint_authority: &Pubkey,
+//     freeze_authority: Option<&Pubkey>,
+//     extension_init_params: Vec<ExtensionInitializationParams>,
+//     decimals: u8,
+// ) -> Result<Vec<Instruction>> {
+//     let payer = read_keypair_file(&config.payer_path)?;
+//     let url = Cluster::Custom(config.http_url.clone(), config.ws_url.clone());
+//     // Client.
+//     let client = Client::new(url, Rc::new(payer));
+//     let program = if token_program == spl_token::id() {
+//         client.program(spl_token::id())?
+//     } else {
+//         client.program(spl_token_2022::id())?
+//     };
+//     let extension_types = extension_init_params
+//         .iter()
+//         .map(|e| e.extension())
+//         .collect::<Vec<_>>();
+//     let space = ExtensionType::try_calculate_account_len::<Mint>(&extension_types)?;
 
-    let mut instructions = vec![system_instruction::create_account(
-        &program.payer(),
-        mint_key,
-        program
-            .rpc()
-            .get_minimum_balance_for_rent_exemption(space)?,
-        space as u64,
-        &program.id(),
-    )];
-    for params in extension_init_params {
-        instructions.push(params.instruction(&token_program, &mint_key)?);
-    }
-    instructions.push(spl_token_2022::instruction::initialize_mint(
-        &program.id(),
-        mint_key,
-        mint_authority,
-        freeze_authority,
-        decimals,
-    )?);
-    Ok(instructions)
-}
+//     let mut instructions = vec![system_instruction::create_account(
+//         &program.payer(),
+//         mint_key,
+//         program
+//             .rpc()
+//             .get_minimum_balance_for_rent_exemption(space)?,
+//         space as u64,
+//         &program.id(),
+//     )];
+//     for params in extension_init_params {
+//         instructions.push(params.instruction(&token_program, &mint_key)?);
+//     }
+//     instructions.push(spl_token_2022::instruction::initialize_mint(
+//         &program.id(),
+//         mint_key,
+//         mint_authority,
+//         freeze_authority,
+//         decimals,
+//     )?);
+//     Ok(instructions)
+// }
 
 pub fn create_account_rent_exmpt_instr(
     config: &ClientConfig,

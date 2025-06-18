@@ -1,15 +1,15 @@
 use anchor_lang::AccountDeserialize;
-use anyhow::Result;
-use bytemuck::Pod;
-use solana_client::rpc_client::RpcClient;
-use solana_sdk::{account::Account as CliAccount, pubkey::Pubkey};
-use spl_token_2022::{
+use anchor_spl::token_2022::spl_token_2022::{
     extension::{
         transfer_fee::{TransferFeeConfig, MAX_FEE_BASIS_POINTS},
         BaseState, BaseStateWithExtensions, PodStateWithExtensions,
     },
     pod::{PodAccount, PodMint},
 };
+use anyhow::Result;
+use bytemuck::Pod;
+use solana_client::rpc_client::RpcClient;
+use solana_sdk::{account::Account as CliAccount, pubkey::Pubkey};
 use std::ops::Mul;
 
 pub fn deserialize_anchor_account<T: AccountDeserialize>(account: &CliAccount) -> Result<T> {
