@@ -6,12 +6,13 @@ use anchor_lang::prelude::*;
 use anchor_lang::solana_program;
 use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 
+#[event_cpi]
 #[derive(Accounts)]
-pub struct Swap<'info> {
+pub struct SwapV2<'info> {
     /// The user performing the swap
     pub payer: Signer<'info>,
 
-    /// CHECK: pool vault and lp mint authority
+    /// CHECK: pool vault authority
     #[account(
         seeds = [
             crate::AUTH_SEED.as_bytes(),
@@ -72,7 +73,11 @@ pub struct Swap<'info> {
     pub observation_state: AccountLoader<'info, ObservationState>,
 }
 
-pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u64) -> Result<()> {
+pub fn swap_base_input_v2(
+    ctx: Context<SwapV2>,
+    amount_in: u64,
+    minimum_amount_out: u64,
+) -> Result<()> {
     let block_timestamp = solana_program::clock::Clock::get()?.unix_timestamp as u64;
     let pool_id = ctx.accounts.pool_state.key();
     let pool_state = &mut ctx.accounts.pool_state.load_mut()?;
@@ -88,7 +93,6 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
     let actual_amount_in = amount_in.saturating_sub(transfer_fee);
     require_gt!(actual_amount_in, 0);
 
-    // Calculate the trade amounts and the price before swap
     let SwapParams {
         trade_direction,
         total_input_token_amount,
@@ -159,7 +163,7 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
         is_fee_on_input,
     )?;
 
-    emit!(SwapEvent {
+    emit_cpi!(SwapEvent {
         pool_id,
         input_vault_before: total_input_token_amount,
         output_vault_before: total_output_token_amount,

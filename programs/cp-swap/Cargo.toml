@@ -20,7 +20,7 @@ client = []
 idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
 
 [dependencies]
-anchor-lang = { version = "0.31.0", features = ["init-if-needed"] }
+anchor-lang = { version = "0.31.0", features = ["init-if-needed", "event-cpi"] }
 anchor-spl = { version = "0.31.0", features = ["memo", "metadata"] }
 spl-math = { version = "0.3", features = ["no-entrypoint"] }
 uint = "0.10.0"

@@ -1,4 +1,4 @@
-use super::swap_base_input::Swap;
+use super::swap_base_input::SwapV2;
 use crate::curve::calculator::CurveCalculator;
 use crate::error::ErrorCode;
 use crate::states::*;
@@ -6,8 +6,8 @@ use crate::utils::token::*;
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program;
 
-pub fn swap_base_output(
-    ctx: Context<Swap>,
+pub fn swap_base_output_v2(
+    ctx: Context<SwapV2>,
     max_amount_in: u64,
     amount_out_received: u64,
 ) -> Result<()> {
@@ -102,7 +102,7 @@ pub fn swap_base_output(
         is_fee_on_input,
     )?;
 
-    emit!(SwapEvent {
+    emit_cpi!(SwapEvent {
         pool_id,
         input_vault_before: total_input_token_amount,
         output_vault_before: total_output_token_amount,

@@ -45,3 +45,17 @@ impl CheckedCeilDiv for u128 {
         Some((quotient, rhs))
     }
 }
+
+pub trait DownCast {
+    fn to_u64(&self) -> Option<u64>;
+}
+
+impl DownCast for u128 {
+    fn to_u64(&self) -> Option<u64> {
+        if *self > u64::MAX as u128 {
+            None
+        } else {
+            Some(*self as u64)
+        }
+    }
+}

@@ -155,12 +155,53 @@ pub mod raydium_cp_swap {
         instructions::initialize(ctx, init_amount_0, init_amount_1, open_time)
     }
 
+    /// Create a new pool. Unlike `initialize`, the creator of this instruction can specify the transaction fee collection model,
+    /// and the creator will also receive an NFT that is bound to the position and can be transferred to others.
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx`- The context of accounts
+    /// * `init_amount_0` - the initial amount_0 to deposit
+    /// * `init_amount_1` - the initial amount_1 to deposit
+    /// * `open_time` - the timestamp allowed for swap
+    /// * `fee_model` - 0：both token0 and token1 (depends on the input), 1: only token0, 2: only token1
+    /// * `with_metadata` - Is metadata extension needed
+    ///
+    pub fn initialize_v2(
+        ctx: Context<InitializeV2>,
+        init_amount_0: u64,
+        init_amount_1: u64,
+        open_time: u64,
+        fee_model: u8,
+        with_metadata: bool,
+    ) -> Result<()> {
+        instructions::initialize_v2(
+            ctx,
+            init_amount_0,
+            init_amount_1,
+            open_time,
+            fee_model,
+            with_metadata,
+        )
+    }
+
+    /// Initialize an empty position, and then you can call `deposit_v2` to add liquidity.
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx`- The context of accounts
+    /// * `with_metadata` - Is metadata extension needed
+    ///
+    pub fn open_position(ctx: Context<OpenPosition>, with_metadata: bool) -> Result<()> {
+        instructions::open_position(ctx, with_metadata)
+    }
+
     /// Deposit lp token to the pool
     ///
     /// # Arguments
     ///
     /// * `ctx`- The context of accounts
-    /// * `lp_token_amount` - Pool token amount to transfer. token_a and token_b amount are set by the current exchange rate and size of the pool
+    /// * `lp_token_amount` - Increased number of LPs
     /// * `maximum_token_0_amount` -  Maximum token 0 amount to deposit, prevents excessive slippage
     /// * `maximum_token_1_amount` - Maximum token 1 amount to deposit, prevents excessive slippage
     ///
@@ -171,6 +212,29 @@ pub mod raydium_cp_swap {
         maximum_token_1_amount: u64,
     ) -> Result<()> {
         instructions::deposit(
+            ctx,
+            lp_token_amount,
+            maximum_token_0_amount,
+            maximum_token_1_amount,
+        )
+    }
+
+    /// Increase the position, so before calling this instruction, you must have a position. Unlike `deposit`, this instruction will not send LP tokens to the user.
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx`- The context of accounts
+    /// * `lp_amount` - Increased number of LPs
+    /// * `maximum_token_0_amount` -  Maximum token 0 amount to deposit, prevents excessive slippage
+    /// * `maximum_token_1_amount` - Maximum token 1 amount to deposit, prevents excessive slippage
+    ///
+    pub fn deposit_v2(
+        ctx: Context<DepositV2>,
+        lp_token_amount: u64,
+        maximum_token_0_amount: u64,
+        maximum_token_1_amount: u64,
+    ) -> Result<()> {
+        instructions::deposit_v2(
             ctx,
             lp_token_amount,
             maximum_token_0_amount,
@@ -199,6 +263,53 @@ pub mod raydium_cp_swap {
             minimum_token_0_amount,
             minimum_token_1_amount,
         )
+    }
+
+    /// Withdraws liquidity from a position, returning the underlying token0 and token1 to the user.
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx` - The context of accounts required for withdrawal, including the position, pool, and user token accounts.
+    /// * `lp_amount` - The amount of liquidity provider (LP) tokens to withdraw from the position.
+    /// * `minimum_token_0_amount` - The minimum acceptable amount of token0 to receive, to protect against excessive slippage.
+    /// * `minimum_token_1_amount` - The minimum acceptable amount of token1 to receive, to protect against excessive slippage.
+    ///
+    pub fn withdraw_v2(
+        ctx: Context<WithdrawV2>,
+        lp_amount: u64,
+        minimum_token_0_amount: u64,
+        minimum_token_1_amount: u64,
+    ) -> Result<()> {
+        instructions::withdraw_v2(
+            ctx,
+            lp_amount,
+            minimum_token_0_amount,
+            minimum_token_1_amount,
+        )
+    }
+
+    /// Collect the fees accrued to a specific position (position NFT) in the pool,
+    /// transferring the accumulated fees to the owner's token accounts.
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx` - The context of accounts, including the position NFT, the owner's token accounts to receive the fees,
+    ///           and all other required accounts as defined in `CollectPositionFees`.
+    ///
+    pub fn collect_position_fee(ctx: Context<CollectPositionFee>) -> Result<()> {
+        instructions::collect_position_fee(ctx)
+    }
+
+    /// Close a position and burn the associated position NFT. This operation is only allowed
+    /// if the position has zero liquidity and no uncollected fees. All related accounts will be closed.
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx` - The context of accounts, including the position NFT, the owner's accounts, and all other
+    ///           required accounts as defined in `ClosePosition`.
+    ///
+    pub fn close_position(ctx: Context<ClosePosition>) -> Result<()> {
+        instructions::close_position(ctx)
     }
 
     /// Swap the tokens in the pool base input amount

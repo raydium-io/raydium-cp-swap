@@ -30,7 +30,8 @@ export async function createTokenMintAndAssociatedTokenAccount(
   connection: Connection,
   payer: Signer,
   mintAuthority: Signer,
-  transferFeeConfig: { transferFeeBasisPoints: number; MaxFee: number }
+  transferFeeConfig: { transferFeeBasisPoints: number; MaxFee: number },
+  allToken2022?: boolean
 ) {
   let ixs: TransactionInstruction[] = [];
   ixs.push(
@@ -48,14 +49,25 @@ export async function createTokenMintAndAssociatedTokenAccount(
   }
 
   let tokenArray: Token[] = [];
-  let token0 = await createMint(
-    connection,
-    mintAuthority,
-    mintAuthority.publicKey,
-    null,
-    9
-  );
-  tokenArray.push({ address: token0, program: TOKEN_PROGRAM_ID });
+  if (allToken2022) {
+    let token0 = await createMintWithTransferFee(
+      connection,
+      payer,
+      mintAuthority,
+      Keypair.generate(),
+      transferFeeConfig
+    );
+    tokenArray.push({ address: token0, program: TOKEN_2022_PROGRAM_ID });
+  } else {
+    let token0 = await createMint(
+      connection,
+      mintAuthority,
+      mintAuthority.publicKey,
+      null,
+      9
+    );
+    tokenArray.push({ address: token0, program: TOKEN_PROGRAM_ID });
+  }
 
   let token1 = await createMintWithTransferFee(
     connection,
@@ -90,7 +102,7 @@ export async function createTokenMintAndAssociatedTokenAccount(
     return 0;
   });
 
-  token0 = tokenArray[0].address;
+  let token0 = tokenArray[0].address;
   token1 = tokenArray[1].address;
   //   console.log("Token 0", token0.toString());
   //   console.log("Token 1", token1.toString());
@@ -114,7 +126,7 @@ export async function createTokenMintAndAssociatedTokenAccount(
     token0,
     ownerToken0Account.address,
     mintAuthority,
-    100_000_000_000_000,
+    BigInt("18446744073709551615000000000"),
     [],
     { skipPreflight: true },
     token0Program
@@ -145,7 +157,7 @@ export async function createTokenMintAndAssociatedTokenAccount(
     token1,
     ownerToken1Account.address,
     mintAuthority,
-    100_000_000_000_000,
+    BigInt("18446744073709551615000000000"),
     [],
     { skipPreflight: true },
     token1Program
