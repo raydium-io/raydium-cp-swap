@@ -1,5 +1,4 @@
 use crate::curve::calculator::CurveCalculator;
-use crate::curve::TradeDirection;
 use crate::error::ErrorCode;
 use crate::states::*;
 use crate::utils::token::*;
@@ -89,56 +88,19 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
     let actual_amount_in = amount_in.saturating_sub(transfer_fee);
     require_gt!(actual_amount_in, 0);
 
-    // Calculate the trade amounts and the price before swap
-    let (
+    let SwapParams {
         trade_direction,
         total_input_token_amount,
         total_output_token_amount,
         token_0_price_x64,
         token_1_price_x64,
-    ) = if ctx.accounts.input_vault.key() == pool_state.token_0_vault
-        && ctx.accounts.output_vault.key() == pool_state.token_1_vault
-    {
-        let (total_input_token_amount, total_output_token_amount) = pool_state
-            .vault_amount_without_fee(
-                ctx.accounts.input_vault.amount,
-                ctx.accounts.output_vault.amount,
-            );
-        let (token_0_price_x64, token_1_price_x64) = pool_state.token_price_x32(
-            ctx.accounts.input_vault.amount,
-            ctx.accounts.output_vault.amount,
-        );
-
-        (
-            TradeDirection::ZeroForOne,
-            total_input_token_amount,
-            total_output_token_amount,
-            token_0_price_x64,
-            token_1_price_x64,
-        )
-    } else if ctx.accounts.input_vault.key() == pool_state.token_1_vault
-        && ctx.accounts.output_vault.key() == pool_state.token_0_vault
-    {
-        let (total_output_token_amount, total_input_token_amount) = pool_state
-            .vault_amount_without_fee(
-                ctx.accounts.output_vault.amount,
-                ctx.accounts.input_vault.amount,
-            );
-        let (token_0_price_x64, token_1_price_x64) = pool_state.token_price_x32(
-            ctx.accounts.output_vault.amount,
-            ctx.accounts.input_vault.amount,
-        );
-
-        (
-            TradeDirection::OneForZero,
-            total_input_token_amount,
-            total_output_token_amount,
-            token_0_price_x64,
-            token_1_price_x64,
-        )
-    } else {
-        return err!(ErrorCode::InvalidVault);
-    };
+        is_fee_on_input,
+    } = pool_state.get_swap_params(
+        ctx.accounts.input_vault.key(),
+        ctx.accounts.output_vault.key(),
+        ctx.accounts.input_vault.amount,
+        ctx.accounts.output_vault.amount,
+    )?;
     let constant_before = u128::from(total_input_token_amount)
         .checked_mul(u128::from(total_output_token_amount))
         .unwrap();
@@ -150,33 +112,30 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
         ctx.accounts.amm_config.trade_fee_rate,
         ctx.accounts.amm_config.protocol_fee_rate,
         ctx.accounts.amm_config.fund_fee_rate,
+        is_fee_on_input,
     )
     .ok_or(ErrorCode::ZeroTradingTokens)?;
 
-    let constant_after = u128::from(
-        result
-            .new_swap_source_amount
-            .checked_sub(result.trade_fee)
-            .unwrap(),
-    )
-    .checked_mul(u128::from(result.new_swap_destination_amount))
-    .unwrap();
+    let constant_after = u128::from(result.new_input_vault_amount)
+        .checked_mul(u128::from(result.new_output_vault_amount))
+        .unwrap();
     #[cfg(feature = "enable-log")]
     msg!(
-        "source_amount_swapped:{}, destination_amount_swapped:{}, trade_fee:{}, constant_before:{},constant_after:{}",
-        result.source_amount_swapped,
-        result.destination_amount_swapped,
+        "input_amount:{}, output_amount:{}, trade_fee:{}, input_transfer_fee:{}, constant_before:{},constant_after:{}",
+        result.input_amount,
+        result.output_amount,
         result.trade_fee,
+        transfer_fee,
         constant_before,
         constant_after
     );
     require_eq!(
-        u64::try_from(result.source_amount_swapped).unwrap(),
+        u64::try_from(result.input_amount).unwrap(),
         actual_amount_in
     );
     let (input_transfer_amount, input_transfer_fee) = (amount_in, transfer_fee);
     let (output_transfer_amount, output_transfer_fee) = {
-        let amount_out = u64::try_from(result.destination_amount_swapped).unwrap();
+        let amount_out = u64::try_from(result.output_amount).unwrap();
         let transfer_fee = get_transfer_fee(
             &ctx.accounts.output_token_mint.to_account_info(),
             amount_out,
@@ -191,37 +150,25 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
         (amount_out, transfer_fee)
     };
 
-    let protocol_fee = u64::try_from(result.protocol_fee).unwrap();
-    let fund_fee = u64::try_from(result.fund_fee).unwrap();
-
-    match trade_direction {
-        TradeDirection::ZeroForOne => {
-            pool_state.protocol_fees_token_0 = pool_state
-                .protocol_fees_token_0
-                .checked_add(protocol_fee)
-                .unwrap();
-            pool_state.fund_fees_token_0 =
-                pool_state.fund_fees_token_0.checked_add(fund_fee).unwrap();
-        }
-        TradeDirection::OneForZero => {
-            pool_state.protocol_fees_token_1 = pool_state
-                .protocol_fees_token_1
-                .checked_add(protocol_fee)
-                .unwrap();
-            pool_state.fund_fees_token_1 =
-                pool_state.fund_fees_token_1.checked_add(fund_fee).unwrap();
-        }
-    };
+    pool_state.update_fees(
+        u64::try_from(result.trade_fee).unwrap(),
+        u64::try_from(result.protocol_fee).unwrap(),
+        u64::try_from(result.fund_fee).unwrap(),
+        trade_direction,
+        is_fee_on_input,
+    )?;
 
     emit!(SwapEvent {
         pool_id,
         input_vault_before: total_input_token_amount,
         output_vault_before: total_output_token_amount,
-        input_amount: u64::try_from(result.source_amount_swapped).unwrap(),
-        output_amount: u64::try_from(result.destination_amount_swapped).unwrap(),
+        input_amount: u64::try_from(result.input_amount).unwrap(),
+        output_amount: u64::try_from(result.output_amount).unwrap(),
         input_transfer_fee,
         output_transfer_fee,
-        base_input: true
+        base_input: true,
+        input_mint: ctx.accounts.input_token_mint.key(),
+        output_mint: ctx.accounts.output_token_mint.key(),
     });
     require_gte!(constant_after, constant_before);
 

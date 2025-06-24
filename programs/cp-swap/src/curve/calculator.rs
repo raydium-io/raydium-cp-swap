@@ -57,14 +57,14 @@ pub struct TradingTokenResult {
 /// Encodes all results of swapping from a source token to a destination token
 #[derive(Debug, PartialEq)]
 pub struct SwapResult {
-    /// New amount of source token
-    pub new_swap_source_amount: u128,
-    /// New amount of destination token
-    pub new_swap_destination_amount: u128,
-    /// Amount of source token swapped (includes fees)
-    pub source_amount_swapped: u128,
-    /// Amount of destination token swapped
-    pub destination_amount_swapped: u128,
+    /// The new amount in the input token vault, excluding  trade fees
+    pub new_input_vault_amount: u128,
+    /// The new amount in the output token vault, excluding trade fees
+    pub new_output_vault_amount: u128,
+    /// User's input amount, including trade fees, excluding transfer fees
+    pub input_amount: u128,
+    /// The amount to be transfer to user, including transfer fees
+    pub output_amount: u128,
     /// Amount of source tokens going to pool holders
     pub trade_fee: u128,
     /// Amount of source tokens going to protocol
@@ -91,32 +91,48 @@ impl CurveCalculator {
     /// Subtract fees and calculate how much destination token will be provided
     /// given an amount of source token.
     pub fn swap_base_input(
-        source_amount: u128,
-        swap_source_amount: u128,
-        swap_destination_amount: u128,
+        input_amount: u128,
+        input_vault_amount: u128,
+        output_vault_amount: u128,
         trade_fee_rate: u64,
         protocol_fee_rate: u64,
         fund_fee_rate: u64,
+        is_fee_on_input: bool,
     ) -> Option<SwapResult> {
-        // debit the fee to calculate the amount swapped
-        let trade_fee = Fees::trading_fee(source_amount, trade_fee_rate)?;
-        let protocol_fee = Fees::protocol_fee(trade_fee, protocol_fee_rate)?;
-        let fund_fee = Fees::fund_fee(trade_fee, fund_fee_rate)?;
+        let mut trade_fee = 0;
+        let mut protocol_fee = 0;
+        let mut fund_fee = 0;
 
-        let source_amount_less_fees = source_amount.checked_sub(trade_fee)?;
+        let input_amount_less_fees = if is_fee_on_input {
+            // debit the fee to calculate the amount swapped
+            trade_fee = Fees::trading_fee(input_amount, trade_fee_rate)?;
+            protocol_fee = Fees::protocol_fee(trade_fee, protocol_fee_rate)?;
+            fund_fee = Fees::fund_fee(trade_fee, fund_fee_rate)?;
+            input_amount.checked_sub(trade_fee)?
+        } else {
+            input_amount
+        };
 
-        let destination_amount_swapped = ConstantProductCurve::swap_base_input_without_fees(
-            source_amount_less_fees,
-            swap_source_amount,
-            swap_destination_amount,
+        let output_amount_swapped = ConstantProductCurve::swap_base_input_without_fees(
+            input_amount_less_fees,
+            input_vault_amount,
+            output_vault_amount,
         );
 
+        let output_amount = if is_fee_on_input {
+            output_amount_swapped
+        } else {
+            trade_fee = Fees::trading_fee(output_amount_swapped, trade_fee_rate)?;
+            protocol_fee = Fees::protocol_fee(trade_fee, protocol_fee_rate)?;
+            fund_fee = Fees::fund_fee(trade_fee, fund_fee_rate)?;
+            output_amount_swapped.checked_sub(trade_fee)?
+        };
+
         Some(SwapResult {
-            new_swap_source_amount: swap_source_amount.checked_add(source_amount)?,
-            new_swap_destination_amount: swap_destination_amount
-                .checked_sub(destination_amount_swapped)?,
-            source_amount_swapped: source_amount,
-            destination_amount_swapped,
+            new_input_vault_amount: input_vault_amount.checked_add(input_amount_less_fees)?,
+            new_output_vault_amount: output_vault_amount.checked_sub(output_amount_swapped)?,
+            input_amount,
+            output_amount,
             trade_fee,
             protocol_fee,
             fund_fee,
@@ -124,31 +140,52 @@ impl CurveCalculator {
     }
 
     pub fn swap_base_output(
-        destinsation_amount: u128,
-        swap_source_amount: u128,
-        swap_destination_amount: u128,
+        output_amount: u128,
+        input_vault_amount: u128,
+        output_vault_amount: u128,
         trade_fee_rate: u64,
         protocol_fee_rate: u64,
         fund_fee_rate: u64,
+        is_fee_on_input: bool,
     ) -> Option<SwapResult> {
-        let source_amount_swapped = ConstantProductCurve::swap_base_output_without_fees(
-            destinsation_amount,
-            swap_source_amount,
-            swap_destination_amount,
+        let mut trade_fee = 0;
+        let mut protocol_fee = 0;
+        let mut fund_fee = 0;
+
+        let actual_output_amount = if is_fee_on_input {
+            output_amount
+        } else {
+            let out_amount_with_trade_fee =
+                Fees::calculate_pre_fee_amount(output_amount, trade_fee_rate)?;
+            trade_fee = out_amount_with_trade_fee - output_amount;
+            protocol_fee = Fees::protocol_fee(trade_fee, protocol_fee_rate)?;
+            fund_fee = Fees::fund_fee(trade_fee, fund_fee_rate)?;
+            out_amount_with_trade_fee
+        };
+
+        let input_amount_swapped = ConstantProductCurve::swap_base_output_without_fees(
+            actual_output_amount,
+            input_vault_amount,
+            output_vault_amount,
         );
 
-        let source_amount =
-            Fees::calculate_pre_fee_amount(source_amount_swapped, trade_fee_rate).unwrap();
-        let trade_fee = Fees::trading_fee(source_amount, trade_fee_rate)?;
-        let protocol_fee = Fees::protocol_fee(trade_fee, protocol_fee_rate)?;
-        let fund_fee = Fees::fund_fee(trade_fee, fund_fee_rate)?;
+        let input_amount = if is_fee_on_input {
+            let input_amount_with_fee =
+                Fees::calculate_pre_fee_amount(input_amount_swapped, trade_fee_rate).unwrap();
+            // trade_fee = Fees::trading_fee(source_amount, trade_fee_rate)?;
+            trade_fee = input_amount_with_fee - input_amount_swapped;
+            protocol_fee = Fees::protocol_fee(trade_fee, protocol_fee_rate)?;
+            fund_fee = Fees::fund_fee(trade_fee, fund_fee_rate)?;
+            input_amount_with_fee
+        } else {
+            input_amount_swapped
+        };
 
         Some(SwapResult {
-            new_swap_source_amount: swap_source_amount.checked_add(source_amount)?,
-            new_swap_destination_amount: swap_destination_amount
-                .checked_sub(destinsation_amount)?,
-            source_amount_swapped: source_amount,
-            destination_amount_swapped: destinsation_amount,
+            new_input_vault_amount: input_vault_amount.checked_add(input_amount_swapped)?,
+            new_output_vault_amount: output_vault_amount.checked_sub(actual_output_amount)?,
+            input_amount,
+            output_amount,
             trade_fee,
             protocol_fee,
             fund_fee,
@@ -160,15 +197,15 @@ impl CurveCalculator {
     pub fn lp_tokens_to_trading_tokens(
         lp_token_amount: u128,
         lp_token_supply: u128,
-        swap_token_0_amount: u128,
-        swap_token_1_amount: u128,
+        token_0_vault_amount: u128,
+        token_1_vault_amount: u128,
         round_direction: RoundDirection,
     ) -> Option<TradingTokenResult> {
         ConstantProductCurve::lp_tokens_to_trading_tokens(
             lp_token_amount,
             lp_token_supply,
-            swap_token_0_amount,
-            swap_token_1_amount,
+            token_0_vault_amount,
+            token_1_vault_amount,
             round_direction,
         )
     }

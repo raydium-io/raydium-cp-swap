@@ -1,13 +1,20 @@
 use crate::error::ErrorCode;
-use anchor_lang::{prelude::*, system_program};
+use anchor_lang::{
+    prelude::*,
+    solana_program,
+    system_program::{self, create_account, CreateAccount},
+};
 use anchor_spl::{
     token::{Token, TokenAccount},
-    token_2022,
-    token_interface::{initialize_account3, InitializeAccount3, Mint},
+    token_2022::{self},
+    token_interface::{
+        initialize_account3, initialize_mint2, InitializeAccount3, InitializeMint2, Mint,
+    },
 };
 use spl_token_2022::{
     self,
     extension::{
+        metadata_pointer,
         transfer_fee::{TransferFeeConfig, MAX_FEE_BASIS_POINTS},
         BaseStateWithExtensions, ExtensionType, StateWithExtensions,
     },
@@ -120,6 +127,24 @@ pub fn token_burn<'a>(
         ),
         amount,
     )
+}
+
+pub fn close_spl_account<'a, 'b, 'c, 'info>(
+    owner: AccountInfo<'info>,
+    destination: AccountInfo<'info>,
+    close_account: AccountInfo<'info>,
+    token_program: AccountInfo<'info>,
+    signers_seeds: &[&[&[u8]]],
+) -> Result<()> {
+    token_2022::close_account(CpiContext::new_with_signer(
+        token_program.to_account_info(),
+        token_2022::CloseAccount {
+            account: close_account.to_account_info(),
+            destination: destination.to_account_info(),
+            authority: owner.to_account_info(),
+        },
+        signers_seeds,
+    ))
 }
 
 /// Calculate the fee for output amount
@@ -296,4 +321,93 @@ pub fn create_or_allocate_account<'a>(
         system_program::assign(cpi_context.with_signer(&[siger_seed]), program_id)?;
     }
     Ok(())
+}
+
+pub fn create_position_nft_mint_with_extensions<'info>(
+    payer: AccountInfo<'info>,
+    position_nft_mint: AccountInfo<'info>,
+    mint_authority: AccountInfo<'info>,
+    mint_close_authority: AccountInfo<'info>,
+    system_program: AccountInfo<'info>,
+    token_program_2022: AccountInfo<'info>,
+    with_matedata: bool,
+) -> Result<()> {
+    let extensions = if with_matedata {
+        [
+            ExtensionType::MintCloseAuthority,
+            ExtensionType::MetadataPointer,
+        ]
+        .to_vec()
+    } else {
+        [ExtensionType::MintCloseAuthority].to_vec()
+    };
+    let space =
+        ExtensionType::try_calculate_account_len::<spl_token_2022::state::Mint>(&extensions)?;
+
+    let lamports = Rent::get()?.minimum_balance(space);
+
+    // create mint account
+    create_account(
+        CpiContext::new(
+            system_program.to_account_info(),
+            CreateAccount {
+                from: payer.to_account_info(),
+                to: position_nft_mint.to_account_info(),
+            },
+        ),
+        lamports,
+        space as u64,
+        token_program_2022.key,
+    )?;
+
+    // initialize token extensions
+    for e in extensions {
+        match e {
+            ExtensionType::MetadataPointer => {
+                let ix = metadata_pointer::instruction::initialize(
+                    token_program_2022.key,
+                    position_nft_mint.key,
+                    None,
+                    Some(position_nft_mint.key()),
+                )?;
+                solana_program::program::invoke(
+                    &ix,
+                    &[
+                        token_program_2022.to_account_info(),
+                        position_nft_mint.to_account_info(),
+                    ],
+                )?;
+            }
+            ExtensionType::MintCloseAuthority => {
+                let ix = spl_token_2022::instruction::initialize_mint_close_authority(
+                    token_program_2022.key,
+                    position_nft_mint.key,
+                    Some(mint_close_authority.key),
+                )?;
+                solana_program::program::invoke(
+                    &ix,
+                    &[
+                        token_program_2022.to_account_info(),
+                        position_nft_mint.to_account_info(),
+                    ],
+                )?;
+            }
+            _ => {
+                return err!(ErrorCode::NotSupportMint);
+            }
+        }
+    }
+
+    // initialize mint account
+    initialize_mint2(
+        CpiContext::new(
+            token_program_2022.to_account_info(),
+            InitializeMint2 {
+                mint: position_nft_mint.to_account_info(),
+            },
+        ),
+        0,
+        &mint_authority.key(),
+        None,
+    )
 }

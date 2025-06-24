@@ -325,8 +325,10 @@ pub fn initialize(
         ctx.accounts.token_1_vault.key(),
         &ctx.accounts.token_0_mint,
         &ctx.accounts.token_1_mint,
-        &ctx.accounts.lp_mint,
+        ctx.accounts.lp_mint.key(),
+        ctx.accounts.lp_mint.decimals,
         ctx.accounts.observation_state.key(),
+        FeeOn::InputToken,
     );
 
     Ok(())

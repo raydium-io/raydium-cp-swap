@@ -24,6 +24,9 @@ export const OPERATION_SEED = Buffer.from(
 export const ORACLE_SEED = Buffer.from(
   anchor.utils.bytes.utf8.encode("observation")
 );
+export const POSITION_SEED = Buffer.from(
+  anchor.utils.bytes.utf8.encode("position")
+);
 
 export function u16ToBytes(num: number) {
   const arr = new ArrayBuffer(2);
@@ -121,6 +124,17 @@ export async function getOrcleAccountAddress(
 ): Promise<[PublicKey, number]> {
   const [address, bump] = await PublicKey.findProgramAddress(
     [ORACLE_SEED, pool.toBuffer()],
+    programId
+  );
+  return [address, bump];
+}
+
+export async function getPositionAddress(
+  tokenMint: PublicKey,
+  programId: PublicKey
+): Promise<[PublicKey, number]> {
+  const [address, bump] = await PublicKey.findProgramAddress(
+    [POSITION_SEED, tokenMint.toBuffer()],
     programId
   );
   return [address, bump];
