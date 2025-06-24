@@ -3,10 +3,10 @@ pub mod error;
 pub mod instructions;
 pub mod states;
 pub mod utils;
-
 use crate::curve::fees::FEE_RATE_DENOMINATOR_VALUE;
 use anchor_lang::prelude::*;
 use instructions::*;
+pub use states::FeeOn;
 
 #[cfg(not(feature = "no-entrypoint"))]
 solana_security_txt::security_txt! {
@@ -41,6 +41,7 @@ pub mod create_pool_fee_reveiver {
 }
 
 pub const AUTH_SEED: &str = "vault_and_lp_mint_auth_seed";
+pub const AUTH_SEED_V2: &str = "vault_and_nft_mint_auth_seed";
 
 #[program]
 pub mod raydium_cp_swap {
@@ -137,6 +138,26 @@ pub mod raydium_cp_swap {
         instructions::collect_fund_fee(ctx, amount_0_requested, amount_1_requested)
     }
 
+    /// Create a permission account
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx`- The context of accounts
+    ///
+    pub fn create_permission_pda(ctx: Context<CreatePermissionPda>) -> Result<()> {
+        instructions::create_permission_pda(ctx)
+    }
+
+    /// Close a permission account
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx`- The context of accounts
+    ///
+    pub fn close_permission_pda(ctx: Context<ClosePermissionPda>) -> Result<()> {
+        instructions::close_permission_pda(ctx)
+    }
+
     /// Creates a pool for the given token pair and the initial price
     ///
     /// # Arguments
@@ -155,12 +176,41 @@ pub mod raydium_cp_swap {
         instructions::initialize(ctx, init_amount_0, init_amount_1, open_time)
     }
 
+    /// Create a pool with permission
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx`- The context of accounts
+    /// * `init_amount_0` - the initial amount_0 to deposit
+    /// * `init_amount_1` - the initial amount_1 to deposit
+    /// * `open_time` - the timestamp allowed for swap
+    /// * `creator` - the pool creator
+    /// * `fee_on` - 0：both token0 and token1 (depends on the input), 1: only token0, 2: only token1
+    ///
+    pub fn initialize_with_permission(
+        ctx: Context<InitializeWithPermission>,
+        init_amount_0: u64,
+        init_amount_1: u64,
+        open_time: u64,
+        creator: Pubkey,
+        fee_on: FeeOn,
+    ) -> Result<()> {
+        instructions::initialize_with_permission(
+            ctx,
+            init_amount_0,
+            init_amount_1,
+            open_time,
+            creator,
+            fee_on,
+        )
+    }
+
     /// Deposit lp token to the pool
     ///
     /// # Arguments
     ///
     /// * `ctx`- The context of accounts
-    /// * `lp_token_amount` - Pool token amount to transfer. token_a and token_b amount are set by the current exchange rate and size of the pool
+    /// * `lp_token_amount` - Increased number of LPs
     /// * `maximum_token_0_amount` -  Maximum token 0 amount to deposit, prevents excessive slippage
     /// * `maximum_token_1_amount` - Maximum token 1 amount to deposit, prevents excessive slippage
     ///

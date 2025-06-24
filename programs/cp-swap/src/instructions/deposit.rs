@@ -99,7 +99,7 @@ pub fn deposit(
     let (total_token_0_amount, total_token_1_amount) = pool_state.vault_amount_without_fee(
         ctx.accounts.token_0_vault.amount,
         ctx.accounts.token_1_vault.amount,
-    );
+    )?;
     let results = CurveCalculator::lp_tokens_to_trading_tokens(
         u128::from(lp_token_amount),
         u128::from(pool_state.lp_supply),
