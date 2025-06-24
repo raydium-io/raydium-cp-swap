@@ -1,3 +1,4 @@
+use crate::{curve::TradeDirection, error::ErrorCode};
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::Mint;
 use std::ops::{BitAnd, BitOr, BitXor};
@@ -18,6 +19,45 @@ pub enum PoolStatusBitIndex {
 pub enum PoolStatusBitFlag {
     Enable,
     Disable,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug, PartialEq, Eq)]
+pub enum FeeOn {
+    /// Both token0 and token1 can be used as trade fees.
+    /// It depends on what the input token is.
+    BothToken,
+    /// Only token0 can be used as trade fees.
+    OnlyToken0,
+    /// Only token1 can be used as trade fees.
+    OnlyToken1,
+}
+
+impl FeeOn {
+    fn from_u8(value: u8) -> Result<Self> {
+        match value {
+            0 => Ok(FeeOn::BothToken),
+            1 => Ok(FeeOn::OnlyToken0),
+            2 => Ok(FeeOn::OnlyToken1),
+            _ => Err(ErrorCode::InvalidFeeModel.into()),
+        }
+    }
+
+    pub fn to_u8(&self) -> u8 {
+        match self {
+            FeeOn::BothToken => 0u8,
+            FeeOn::OnlyToken0 => 1u8,
+            FeeOn::OnlyToken1 => 2u8,
+        }
+    }
+}
+
+pub struct SwapParams {
+    pub trade_direction: TradeDirection,
+    pub total_input_token_amount: u64,
+    pub total_output_token_amount: u64,
+    pub token_0_price_x64: u128,
+    pub token_1_price_x64: u128,
+    pub is_creator_fee_on_input: bool,
 }
 
 #[account(zero_copy(unsafe))]
@@ -56,6 +96,7 @@ pub struct PoolState {
     /// bit2, 1: disable swap(value is 4), 0: normal
     pub status: u8,
 
+    /// if pool created by v2 instruction, the value is 0
     pub lp_mint_decimals: u8,
     /// mint0 and mint1 decimals
     pub mint_0_decimals: u8,
@@ -74,12 +115,22 @@ pub struct PoolState {
     pub open_time: u64,
     /// recent epoch
     pub recent_epoch: u64,
+
+    /// Creator fee collect mode
+    /// 0: both token_0 and token_1 can be used as trade fees. It depends on what the input token is when swapping
+    /// 1: only token_0 as trade fee
+    /// 2: only token_1 as trade fee
+    pub fee_on: u8,
+    pub enable_creator_fee: bool,
+    pub padding1: [u8; 6],
+    pub creator_fees_token_0: u64,
+    pub creator_fees_token_1: u64,
     /// padding for future updates
-    pub padding: [u64; 31],
+    pub padding: [u64; 28],
 }
 
 impl PoolState {
-    pub const LEN: usize = 8 + 10 * 32 + 1 * 5 + 8 * 7 + 8 * 31;
+    pub const LEN: usize = 8 + 10 * 32 + 1 * 5 + 8 * 7 + 1 * 2 + 6 * 8 + 2 * 8 + 8 * 28;
 
     pub fn initialize(
         &mut self,
@@ -92,8 +143,11 @@ impl PoolState {
         token_1_vault: Pubkey,
         token_0_mint: &InterfaceAccount<Mint>,
         token_1_mint: &InterfaceAccount<Mint>,
-        lp_mint: &InterfaceAccount<Mint>,
+        lp_mint: Pubkey,
+        lp_mint_decimals: u8,
         observation_key: Pubkey,
+        fee_on: FeeOn,
+        enable_creator_fee: bool,
     ) {
         self.amm_config = amm_config.key();
         self.pool_creator = pool_creator.key();
@@ -106,7 +160,7 @@ impl PoolState {
         self.token_1_program = *token_1_mint.to_account_info().owner;
         self.observation_key = observation_key;
         self.auth_bump = auth_bump;
-        self.lp_mint_decimals = lp_mint.decimals;
+        self.lp_mint_decimals = lp_mint_decimals;
         self.mint_0_decimals = token_0_mint.decimals;
         self.mint_1_decimals = token_1_mint.decimals;
         self.lp_supply = lp_supply;
@@ -116,7 +170,12 @@ impl PoolState {
         self.fund_fees_token_1 = 0;
         self.open_time = open_time;
         self.recent_epoch = Clock::get().unwrap().epoch;
-        self.padding = [0u64; 31];
+        self.fee_on = fee_on.to_u8();
+        self.enable_creator_fee = enable_creator_fee;
+        self.padding1 = [0u8; 6];
+        self.creator_fees_token_0 = 0;
+        self.creator_fees_token_1 = 0;
+        self.padding = [0u64; 28];
     }
 
     pub fn set_status(&mut self, status: u8) {
@@ -139,23 +198,169 @@ impl PoolState {
         self.status.bitand(status) == 0
     }
 
-    pub fn vault_amount_without_fee(&self, vault_0: u64, vault_1: u64) -> (u64, u64) {
-        (
+    pub fn vault_amount_without_fee(&self, vault_0: u64, vault_1: u64) -> Result<(u64, u64)> {
+        let fees_token_0 = self
+            .protocol_fees_token_0
+            .checked_add(self.fund_fees_token_0)
+            .ok_or(ErrorCode::MathOverflow)?
+            .checked_add(self.creator_fees_token_0)
+            .ok_or(ErrorCode::MathOverflow)?;
+        let fees_token_1 = self
+            .protocol_fees_token_1
+            .checked_add(self.fund_fees_token_1)
+            .ok_or(ErrorCode::MathOverflow)?
+            .checked_add(self.creator_fees_token_1)
+            .ok_or(ErrorCode::MathOverflow)?;
+        Ok((
             vault_0
-                .checked_sub(self.protocol_fees_token_0 + self.fund_fees_token_0)
-                .unwrap(),
+                .checked_sub(fees_token_0)
+                .ok_or(ErrorCode::InsufficientVault)?,
             vault_1
-                .checked_sub(self.protocol_fees_token_1 + self.fund_fees_token_1)
-                .unwrap(),
-        )
+                .checked_sub(fees_token_1)
+                .ok_or(ErrorCode::InsufficientVault)?,
+        ))
     }
 
-    pub fn token_price_x32(&self, vault_0: u64, vault_1: u64) -> (u128, u128) {
-        let (token_0_amount, token_1_amount) = self.vault_amount_without_fee(vault_0, vault_1);
-        (
+    pub fn token_price_x32(&self, vault_0: u64, vault_1: u64) -> Result<(u128, u128)> {
+        let (token_0_amount, token_1_amount) = self.vault_amount_without_fee(vault_0, vault_1)?;
+        Ok((
             token_1_amount as u128 * Q32 as u128 / token_0_amount as u128,
             token_0_amount as u128 * Q32 as u128 / token_1_amount as u128,
-        )
+        ))
+    }
+
+    pub fn update_lp_supply(
+        &mut self,
+        liquidity_delta: u64,
+        add: bool,
+        recent_epoch: u64,
+    ) -> Result<()> {
+        if add {
+            self.lp_supply = self
+                .lp_supply
+                .checked_add(liquidity_delta)
+                .ok_or(ErrorCode::MathOverflow)?;
+        } else {
+            self.lp_supply = self
+                .lp_supply
+                .checked_sub(liquidity_delta)
+                .ok_or(ErrorCode::MathOverflow)?;
+        }
+        self.recent_epoch = recent_epoch;
+        Ok(())
+    }
+
+    // Determine the method used by the creator to calculate transaction fees
+    pub fn is_creator_fee_on_input(&self, direction: TradeDirection) -> Result<bool> {
+        let fee_on = FeeOn::from_u8(self.fee_on)?;
+        Ok(match (fee_on, direction) {
+            (FeeOn::BothToken, _) => true,
+            (FeeOn::OnlyToken0, TradeDirection::ZeroForOne) => true,
+            (FeeOn::OnlyToken1, TradeDirection::OneForZero) => true,
+            _ => false,
+        })
+    }
+
+    pub fn get_swap_params(
+        &self,
+        input_vault_key: Pubkey,
+        output_vault_key: Pubkey,
+        input_vault_amount: u64,
+        output_vault_amount: u64,
+    ) -> Result<SwapParams> {
+        let (
+            trade_direction,
+            total_input_token_amount,
+            total_output_token_amount,
+            token_0_price_x64,
+            token_1_price_x64,
+            is_creator_fee_on_input,
+        ) = if input_vault_key == self.token_0_vault && output_vault_key == self.token_1_vault {
+            let (total_input_token_amount, total_output_token_amount) =
+                self.vault_amount_without_fee(input_vault_amount, output_vault_amount)?;
+            let (token_0_price_x64, token_1_price_x64) =
+                self.token_price_x32(input_vault_amount, output_vault_amount)?;
+
+            (
+                TradeDirection::ZeroForOne,
+                total_input_token_amount,
+                total_output_token_amount,
+                token_0_price_x64,
+                token_1_price_x64,
+                self.is_creator_fee_on_input(TradeDirection::ZeroForOne)?,
+            )
+        } else if input_vault_key == self.token_1_vault && output_vault_key == self.token_0_vault {
+            let (total_output_token_amount, total_input_token_amount) =
+                self.vault_amount_without_fee(output_vault_amount, input_vault_amount)?;
+            let (token_0_price_x64, token_1_price_x64) =
+                self.token_price_x32(output_vault_amount, input_vault_amount)?;
+
+            (
+                TradeDirection::OneForZero,
+                total_input_token_amount,
+                total_output_token_amount,
+                token_0_price_x64,
+                token_1_price_x64,
+                self.is_creator_fee_on_input(TradeDirection::OneForZero)?,
+            )
+        } else {
+            return err!(ErrorCode::InvalidVault);
+        };
+        Ok(SwapParams {
+            trade_direction,
+            total_input_token_amount,
+            total_output_token_amount,
+            token_0_price_x64,
+            token_1_price_x64,
+            is_creator_fee_on_input,
+        })
+    }
+
+    pub fn adjust_creator_fee_rate(&self, creator_fee_rate: u64) -> u64 {
+        if self.enable_creator_fee {
+            creator_fee_rate
+        } else {
+            0
+        }
+    }
+
+    pub fn update_fees(
+        &mut self,
+        protocol_fee: u64,
+        fund_fee: u64,
+        creator_fee: u64,
+        direction: TradeDirection,
+    ) -> Result<()> {
+        let is_creator_fee_on_input = self.is_creator_fee_on_input(direction)?;
+        match (direction, is_creator_fee_on_input) {
+            (TradeDirection::ZeroForOne, true) | (TradeDirection::OneForZero, false) => {
+                self.protocol_fees_token_0 = self
+                    .protocol_fees_token_0
+                    .checked_add(protocol_fee)
+                    .unwrap();
+                self.fund_fees_token_0 = self.fund_fees_token_0.checked_add(fund_fee).unwrap();
+                if self.enable_creator_fee {
+                    self.creator_fees_token_0 =
+                        self.creator_fees_token_0.checked_add(creator_fee).unwrap();
+                } else {
+                    require_eq!(creator_fee, 0)
+                }
+            }
+            (TradeDirection::OneForZero, true) | (TradeDirection::ZeroForOne, false) => {
+                self.protocol_fees_token_1 = self
+                    .protocol_fees_token_1
+                    .checked_add(protocol_fee)
+                    .unwrap();
+                self.fund_fees_token_1 = self.fund_fees_token_1.checked_add(fund_fee).unwrap();
+                if self.enable_creator_fee {
+                    self.creator_fees_token_1 =
+                        self.creator_fees_token_1.checked_add(creator_fee).unwrap();
+                } else {
+                    require_eq!(creator_fee, 0)
+                }
+            }
+        };
+        Ok(())
     }
 }
 

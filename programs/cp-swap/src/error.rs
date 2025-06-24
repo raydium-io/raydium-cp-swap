@@ -32,4 +32,10 @@ pub enum ErrorCode {
     InitLpAmountTooLess,
     #[msg("TransferFee calculate not match")]
     TransferFeeCalculateNotMatch,
+    #[msg("Math overflow")]
+    MathOverflow,
+    #[msg("Insufficient vault")]
+    InsufficientVault,
+    #[msg("Invalid fee model")]
+    InvalidFeeModel,
 }

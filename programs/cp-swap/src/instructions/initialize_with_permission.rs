@@ -1,12 +1,12 @@
 use crate::curve::CurveCalculator;
 use crate::error::ErrorCode;
+use crate::initialize::create_pool;
 use crate::states::*;
 use crate::utils::*;
 use anchor_lang::{
     accounts::interface_account::InterfaceAccount,
     prelude::*,
     solana_program::{clock, program::invoke, system_instruction},
-    system_program,
 };
 use anchor_spl::{
     associated_token::AssociatedToken,
@@ -18,10 +18,10 @@ use spl_token_2022;
 use std::ops::Deref;
 
 #[derive(Accounts)]
-pub struct Initialize<'info> {
+pub struct InitializeWithPermission<'info> {
     /// Address paying to create the pool. Can be anyone
     #[account(mut)]
-    pub creator: Signer<'info>,
+    pub payer: Signer<'info>,
 
     /// Which config the pool belongs to.
     pub amm_config: Box<Account<'info, AmmConfig>>,
@@ -72,7 +72,7 @@ pub struct Initialize<'info> {
         bump,
         mint::decimals = 9,
         mint::authority = authority,
-        payer = creator,
+        payer = payer,
         mint::token_program = token_program,
     )]
     pub lp_mint: Box<InterfaceAccount<'info, Mint>>,
@@ -81,27 +81,27 @@ pub struct Initialize<'info> {
     #[account(
         mut,
         token::mint = token_0_mint,
-        token::authority = creator,
+        token::authority = payer,
     )]
-    pub creator_token_0: Box<InterfaceAccount<'info, TokenAccount>>,
+    pub payer_token_0: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// creator token1 account
     #[account(
         mut,
         token::mint = token_1_mint,
-        token::authority = creator,
+        token::authority = payer,
     )]
-    pub creator_token_1: Box<InterfaceAccount<'info, TokenAccount>>,
+    pub payer_token_1: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// creator lp token account
     #[account(
         init,
         associated_token::mint = lp_mint,
-        associated_token::authority = creator,
-        payer = creator,
+        associated_token::authority = payer,
+        payer = payer,
         token::token_program = token_program,
     )]
-    pub creator_lp_token: Box<InterfaceAccount<'info, TokenAccount>>,
+    pub payer_lp_token: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// CHECK: Token_0 vault for the pool, created by contract
     #[account(
@@ -142,10 +142,20 @@ pub struct Initialize<'info> {
             pool_state.key().as_ref(),
         ],
         bump,
-        payer = creator,
+        payer = payer,
         space = ObservationState::LEN
     )]
     pub observation_state: AccountLoader<'info, ObservationState>,
+
+    /// CHECK: PDA account used for permission verification.
+    #[account(
+        seeds = [
+            PERMISSION_SEED.as_bytes(),
+            payer.key().as_ref(),
+        ],
+        bump,
+    )]
+    pub permission: Box<Account<'info, Permission>>,
 
     /// Program to create mint account and mint tokens
     pub token_program: Program<'info, Token>,
@@ -157,15 +167,15 @@ pub struct Initialize<'info> {
     pub associated_token_program: Program<'info, AssociatedToken>,
     /// To create a new program account
     pub system_program: Program<'info, System>,
-    /// Sysvar for program account
-    pub rent: Sysvar<'info, Rent>,
 }
 
-pub fn initialize(
-    ctx: Context<Initialize>,
+pub fn initialize_with_permission(
+    ctx: Context<InitializeWithPermission>,
     init_amount_0: u64,
     init_amount_1: u64,
-    mut open_time: u64,
+    open_time: u64,
+    creator: Pubkey,
+    fee_on: FeeOn,
 ) -> Result<()> {
     if !(is_supported_mint(&ctx.accounts.token_0_mint).unwrap()
         && is_supported_mint(&ctx.accounts.token_1_mint).unwrap())
@@ -176,6 +186,7 @@ pub fn initialize(
     if ctx.accounts.amm_config.disable_create_pool {
         return err!(ErrorCode::NotApproved);
     }
+    let mut open_time = open_time;
     let block_timestamp = clock::Clock::get()?.unix_timestamp as u64;
     if open_time <= block_timestamp {
         open_time = block_timestamp + 1;
@@ -183,7 +194,7 @@ pub fn initialize(
     // due to stack/heap limitations, we have to create redundant new accounts ourselves.
     create_token_account(
         &ctx.accounts.authority.to_account_info(),
-        &ctx.accounts.creator.to_account_info(),
+        &ctx.accounts.payer.to_account_info(),
         &ctx.accounts.token_0_vault.to_account_info(),
         &ctx.accounts.token_0_mint.to_account_info(),
         &ctx.accounts.system_program.to_account_info(),
@@ -198,7 +209,7 @@ pub fn initialize(
 
     create_token_account(
         &ctx.accounts.authority.to_account_info(),
-        &ctx.accounts.creator.to_account_info(),
+        &ctx.accounts.payer.to_account_info(),
         &ctx.accounts.token_1_vault.to_account_info(),
         &ctx.accounts.token_1_mint.to_account_info(),
         &ctx.accounts.system_program.to_account_info(),
@@ -212,7 +223,7 @@ pub fn initialize(
     )?;
 
     let pool_state_loader = create_pool(
-        &ctx.accounts.creator.to_account_info(),
+        &ctx.accounts.payer.to_account_info(),
         &ctx.accounts.pool_state.to_account_info(),
         &ctx.accounts.amm_config.to_account_info(),
         &ctx.accounts.token_0_mint.to_account_info(),
@@ -225,8 +236,8 @@ pub fn initialize(
     observation_state.pool_id = ctx.accounts.pool_state.key();
 
     transfer_from_user_to_pool_vault(
-        ctx.accounts.creator.to_account_info(),
-        ctx.accounts.creator_token_0.to_account_info(),
+        ctx.accounts.payer.to_account_info(),
+        ctx.accounts.payer_token_0.to_account_info(),
         ctx.accounts.token_0_vault.to_account_info(),
         ctx.accounts.token_0_mint.to_account_info(),
         ctx.accounts.token_0_program.to_account_info(),
@@ -235,8 +246,8 @@ pub fn initialize(
     )?;
 
     transfer_from_user_to_pool_vault(
-        ctx.accounts.creator.to_account_info(),
-        ctx.accounts.creator_token_1.to_account_info(),
+        ctx.accounts.payer.to_account_info(),
+        ctx.accounts.payer_token_1.to_account_info(),
         ctx.accounts.token_1_vault.to_account_info(),
         ctx.accounts.token_1_mint.to_account_info(),
         ctx.accounts.token_1_program.to_account_info(),
@@ -282,7 +293,7 @@ pub fn initialize(
         ctx.accounts.authority.to_account_info(),
         ctx.accounts.token_program.to_account_info(),
         ctx.accounts.lp_mint.to_account_info(),
-        ctx.accounts.creator_lp_token.to_account_info(),
+        ctx.accounts.payer_lp_token.to_account_info(),
         liquidity
             .checked_sub(lock_lp_amount)
             .ok_or(ErrorCode::InitLpAmountTooLess)?,
@@ -293,12 +304,12 @@ pub fn initialize(
     if ctx.accounts.amm_config.create_pool_fee != 0 {
         invoke(
             &system_instruction::transfer(
-                ctx.accounts.creator.key,
+                ctx.accounts.payer.key,
                 &ctx.accounts.create_pool_fee.key(),
                 u64::from(ctx.accounts.amm_config.create_pool_fee),
             ),
             &[
-                ctx.accounts.creator.to_account_info(),
+                ctx.accounts.payer.to_account_info(),
                 ctx.accounts.create_pool_fee.to_account_info(),
                 ctx.accounts.system_program.to_account_info(),
             ],
@@ -319,7 +330,7 @@ pub fn initialize(
         ctx.bumps.authority,
         liquidity,
         open_time,
-        ctx.accounts.creator.key(),
+        creator,
         ctx.accounts.amm_config.key(),
         ctx.accounts.token_0_vault.key(),
         ctx.accounts.token_1_vault.key(),
@@ -328,56 +339,9 @@ pub fn initialize(
         ctx.accounts.lp_mint.key(),
         ctx.accounts.lp_mint.decimals,
         ctx.accounts.observation_state.key(),
-        FeeOn::BothToken,
-        false,
+        fee_on,
+        true,
     );
 
     Ok(())
-}
-
-pub fn create_pool<'info>(
-    payer: &AccountInfo<'info>,
-    pool_account_info: &AccountInfo<'info>,
-    amm_config: &AccountInfo<'info>,
-    token_0_mint: &AccountInfo<'info>,
-    token_1_mint: &AccountInfo<'info>,
-    system_program: &AccountInfo<'info>,
-) -> Result<AccountLoad<'info, PoolState>> {
-    if pool_account_info.owner != &system_program::ID {
-        return err!(ErrorCode::NotApproved);
-    }
-
-    let (expect_pda_address, bump) = Pubkey::find_program_address(
-        &[
-            POOL_SEED.as_bytes(),
-            amm_config.key().as_ref(),
-            token_0_mint.key().as_ref(),
-            token_1_mint.key().as_ref(),
-        ],
-        &crate::id(),
-    );
-
-    if pool_account_info.key() != expect_pda_address {
-        require_eq!(pool_account_info.is_signer, true);
-    }
-
-    token::create_or_allocate_account(
-        &crate::id(),
-        payer.to_account_info(),
-        system_program.to_account_info(),
-        pool_account_info.clone(),
-        &[
-            POOL_SEED.as_bytes(),
-            amm_config.key().as_ref(),
-            token_0_mint.key().as_ref(),
-            token_1_mint.key().as_ref(),
-            &[bump],
-        ],
-        PoolState::LEN,
-    )?;
-
-    Ok(AccountLoad::<PoolState>::try_from_unchecked(
-        &crate::id(),
-        &pool_account_info,
-    )?)
 }

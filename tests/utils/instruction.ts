@@ -8,6 +8,7 @@ import {
   Signer,
   SystemProgram,
   SYSVAR_RENT_PUBKEY,
+  ComputeBudgetProgram,
 } from "@solana/web3.js";
 import {
   TOKEN_PROGRAM_ID,
@@ -318,7 +319,7 @@ export async function initialize(
   );
   await program.methods
     .initialize(initAmount.initAmount0, initAmount.initAmount1, new BN(0))
-    .accountsPartial({
+    .accounts({
       creator: creator.publicKey,
       ammConfig: configAddress,
       authority: auth,
@@ -583,16 +584,19 @@ export async function swap_base_output(
   outputTokenProgram: PublicKey,
   amount_out_less_fee: BN,
   max_amount_in: BN,
-  confirmOptions?: ConfirmOptions
+  confirmOptions?: ConfirmOptions,
+  poolAddress?: PublicKey
 ) {
   const [auth] = await getAuthAddress(program.programId);
-  const [poolAddress] = await getPoolAddress(
+  const [poolPdaAddress] = await getPoolAddress(
     configAddress,
     inputToken,
     outputToken,
     program.programId
   );
-
+  if (poolAddress == undefined) {
+    poolAddress = poolPdaAddress;
+  }
   const [inputVault] = await getPoolVaultAddress(
     poolAddress,
     inputToken,
