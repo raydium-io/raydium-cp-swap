@@ -12,9 +12,9 @@ use anchor_spl::{
     associated_token::AssociatedToken,
     token::spl_token,
     token::Token,
-    token_2022::spl_token_2022,
     token_interface::{Mint, TokenAccount, TokenInterface},
 };
+use spl_token_2022;
 use std::ops::Deref;
 
 #[derive(Accounts)]
