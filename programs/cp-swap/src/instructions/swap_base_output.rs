@@ -26,7 +26,6 @@ pub fn swap_base_output(
     )?;
     let amount_out_with_transfer_fee = amount_out_received.checked_add(out_transfer_fee).unwrap();
 
-    // Calculate the trade amounts and the price before swap
     let SwapParams {
         trade_direction,
         total_input_token_amount,

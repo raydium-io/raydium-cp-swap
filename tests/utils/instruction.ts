@@ -500,8 +500,12 @@ export async function initializeV2(
 ) {
   const [auth] = await getAuthAddress(program.programId);
 
-  const pool = Keypair.generate();
-  const poolAddress = pool.publicKey;
+  const [poolAddress] = await getPoolAddress(
+    configAddress,
+    token0,
+    token1,
+    program.programId
+  );
 
   const positionNftMint = Keypair.generate();
   const positionNftMintAddress = positionNftMint.publicKey;
@@ -569,15 +573,14 @@ export async function initializeV2(
       createPoolFee,
       observationState: observationAddress,
       tokenProgram: TOKEN_PROGRAM_ID,
-      token0Program: token0Program,
-      token1Program: token1Program,
+      tokenProgram2022: TOKEN_2022_PROGRAM_ID,
       systemProgram: SystemProgram.programId,
       // rent: SYSVAR_RENT_PUBKEY,
     })
     .preInstructions([
       ComputeBudgetProgram.setComputeUnitLimit({ units: 400000 }),
     ])
-    .signers([pool, positionNftMint])
+    .signers([positionNftMint])
     .rpc(confirmOptions);
   const poolState = await program.account.poolState.fetch(poolAddress);
   return { poolAddress, poolState };

@@ -21,7 +21,7 @@ use anchor_spl::token_2022::{
 use anchor_spl::token_2022_extensions::spl_token_metadata_interface;
 use anchor_spl::{
     associated_token::{create, AssociatedToken, Create},
-    token_interface::{Mint, TokenAccount, TokenInterface},
+    token_interface::{Mint, TokenAccount},
 };
 
 #[derive(Accounts)]
@@ -42,14 +42,18 @@ pub struct InitializeV2<'info> {
     )]
     pub authority: UncheckedAccount<'info>,
 
-    /// Initialize an account to store the pool state
-    /// random account must be signed by cli
-    #[account(
-        init,
-        payer = creator,
-        space = PoolState::LEN
-    )]
-    pub pool_state: AccountLoader<'info, PoolState>,
+    /// CHECK: Initialize an account to store the pool state
+    /// PDA account:
+    /// seeds = [
+    ///     POOL_SEED.as_bytes(),
+    ///     amm_config.key().as_ref(),
+    ///     token_0_mint.key().as_ref(),
+    ///     token_1_mint.key().as_ref(),
+    /// ],
+    ///
+    /// Or random account: must be signed by cli
+    #[account(mut)]
+    pub pool_state: UncheckedAccount<'info>,
 
     /// CHECK: Receives the position NFT
     pub position_nft_owner: UncheckedAccount<'info>,
@@ -75,24 +79,19 @@ pub struct InitializeV2<'info> {
     )]
     pub position: Box<Account<'info, Position>>,
 
-    /// Token_0 mint, the key must smaller than token_1 mint.
+    /// Token_0 mint
     #[account(
-        // constraint = token_0_mint.key() < token_1_mint.key(),
-        mint::token_program = token_0_program,
+        constraint = token_0_mint.key() < token_1_mint.key()
     )]
     pub token_0_mint: Box<InterfaceAccount<'info, Mint>>,
 
     /// Token_1 mint, the key must grater then token_0 mint.
-    #[account(
-        mint::token_program = token_1_program,
-    )]
     pub token_1_mint: Box<InterfaceAccount<'info, Mint>>,
 
     /// creator token0 account
     #[account(
         mut,
         token::mint = token_0_mint,
-        token::token_program = token_0_program,
         token::authority = creator,
     )]
     pub creator_token_0: Box<InterfaceAccount<'info, TokenAccount>>,
@@ -101,7 +100,6 @@ pub struct InitializeV2<'info> {
     #[account(
         mut,
         token::mint = token_1_mint,
-        token::token_program = token_1_program,
         token::authority = creator,
     )]
     pub creator_token_1: Box<InterfaceAccount<'info, TokenAccount>>,
@@ -117,7 +115,7 @@ pub struct InitializeV2<'info> {
         bump,
         token::authority = authority,
         token::mint = token_0_mint,
-        token::token_program = token_0_program,
+        token::token_program = if token_0_mint.to_account_info().owner.key() == Token::id(){ token_program.to_account_info() } else { token_program_2022.to_account_info() },
         payer = creator,
     )]
     pub token_0_vault: Box<InterfaceAccount<'info, TokenAccount>>,
@@ -133,7 +131,7 @@ pub struct InitializeV2<'info> {
         bump,
         token::authority = authority,
         token::mint = token_1_mint,
-        token::token_program = token_1_program,
+        token::token_program = if token_1_mint.to_account_info().owner.key() == Token::id(){ token_program.to_account_info() } else { token_program_2022.to_account_info() },
         payer = creator,
     )]
     pub token_1_vault: Box<InterfaceAccount<'info, TokenAccount>>,
@@ -158,14 +156,10 @@ pub struct InitializeV2<'info> {
     )]
     pub observation_state: AccountLoader<'info, ObservationState>,
 
-    /// Token program for receive create pool fee
+    /// Token program
     pub token_program: Program<'info, Token>,
-    /// Token program 2022 for position nft mint
+    /// Token program 2022
     pub token_program_2022: Program<'info, Token2022>,
-    /// Spl token program or token program 2022
-    pub token_0_program: Interface<'info, TokenInterface>,
-    /// Spl token program or token program 2022
-    pub token_1_program: Interface<'info, TokenInterface>,
     /// Program to create an ATA for receiving position NFT
     pub associated_token_program: Program<'info, AssociatedToken>,
     /// To create a new program account
@@ -217,8 +211,15 @@ pub fn initialize_v2(
             token_program: ctx.accounts.token_program_2022.to_account_info(),
         },
     ))?;
-
-    let pool_state = &mut ctx.accounts.pool_state.load_init()?;
+    let pool_state_loader = crate::initialize::create_pool(
+        &ctx.accounts.creator.to_account_info(),
+        &ctx.accounts.pool_state.to_account_info(),
+        &ctx.accounts.amm_config.to_account_info(),
+        &ctx.accounts.token_0_mint.to_account_info(),
+        &ctx.accounts.token_1_mint.to_account_info(),
+        &ctx.accounts.system_program.to_account_info(),
+    )?;
+    let pool_state = &mut pool_state_loader.load_init()?;
 
     let mut observation_state = ctx.accounts.observation_state.load_init()?;
     observation_state.pool_id = ctx.accounts.pool_state.key();
@@ -228,7 +229,11 @@ pub fn initialize_v2(
         ctx.accounts.creator_token_0.to_account_info(),
         ctx.accounts.token_0_vault.to_account_info(),
         ctx.accounts.token_0_mint.to_account_info(),
-        ctx.accounts.token_0_program.to_account_info(),
+        if ctx.accounts.token_0_mint.to_account_info().owner.key() == Token::id() {
+            ctx.accounts.token_program.to_account_info()
+        } else {
+            ctx.accounts.token_program_2022.to_account_info()
+        },
         init_amount_0,
         ctx.accounts.token_0_mint.decimals,
     )?;
@@ -238,7 +243,11 @@ pub fn initialize_v2(
         ctx.accounts.creator_token_1.to_account_info(),
         ctx.accounts.token_1_vault.to_account_info(),
         ctx.accounts.token_1_mint.to_account_info(),
-        ctx.accounts.token_1_program.to_account_info(),
+        if ctx.accounts.token_1_mint.to_account_info().owner.key() == Token::id() {
+            ctx.accounts.token_program.to_account_info()
+        } else {
+            ctx.accounts.token_program_2022.to_account_info()
+        },
         init_amount_1,
         ctx.accounts.token_1_mint.decimals,
     )?;

@@ -88,7 +88,6 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
     let actual_amount_in = amount_in.saturating_sub(transfer_fee);
     require_gt!(actual_amount_in, 0);
 
-    // Calculate the trade amounts and the price before swap
     let SwapParams {
         trade_direction,
         total_input_token_amount,

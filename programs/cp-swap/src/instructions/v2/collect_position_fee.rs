@@ -48,17 +48,15 @@ pub struct CollectPositionFee<'info> {
     #[account(
         mut,
         token::mint = vault_0_mint,
-        // token::authority = position_nft_owner
     )]
-    pub token_0_account: Box<InterfaceAccount<'info, TokenAccount>>,
+    pub recipient_token_0_account: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// The token account for receive token_1
     #[account(
         mut,
         token::mint = vault_1_mint,
-        // token::authority = position_nft_owner
     )]
-    pub token_1_account: Box<InterfaceAccount<'info, TokenAccount>>,
+    pub recipient_token_1_account: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// The address that holds pool tokens for token_0
     #[account(
@@ -100,7 +98,7 @@ pub fn collect_position_fee(ctx: Context<CollectPositionFee>) -> Result<()> {
         transfer_from_pool_vault_to_user(
             ctx.accounts.authority.to_account_info(),
             ctx.accounts.token_0_vault.to_account_info(),
-            ctx.accounts.token_0_account.to_account_info(),
+            ctx.accounts.recipient_token_0_account.to_account_info(),
             ctx.accounts.vault_0_mint.to_account_info(),
             ctx.accounts.token_0_program.to_account_info(),
             positon.fees_owed_token_0,
@@ -113,7 +111,7 @@ pub fn collect_position_fee(ctx: Context<CollectPositionFee>) -> Result<()> {
         transfer_from_pool_vault_to_user(
             ctx.accounts.authority.to_account_info(),
             ctx.accounts.token_1_vault.to_account_info(),
-            ctx.accounts.token_1_account.to_account_info(),
+            ctx.accounts.recipient_token_1_account.to_account_info(),
             ctx.accounts.vault_1_mint.to_account_info(),
             ctx.accounts.token_1_program.to_account_info(),
             positon.fees_owed_token_1,
