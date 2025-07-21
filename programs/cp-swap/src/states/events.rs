@@ -36,4 +36,6 @@ pub struct SwapEvent {
     pub input_transfer_fee: u64,
     pub output_transfer_fee: u64,
     pub base_input: bool,
+    pub input_mint: Pubkey,
+    pub output_mint: Pubkey
 }

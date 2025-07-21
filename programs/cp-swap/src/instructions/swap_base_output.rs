@@ -153,6 +153,11 @@ pub fn swap_base_output(
         }
     };
 
+    let (input_mint, output_mint) = match trade_direction {
+        TradeDirection::ZeroForOne => (pool_state.token_0_mint, pool_state.token_1_mint),
+        TradeDirection::OneForZero => (pool_state.token_1_mint, pool_state.token_0_mint),
+    };
+
     emit!(SwapEvent {
         pool_id,
         input_vault_before: total_input_token_amount,
@@ -161,7 +166,9 @@ pub fn swap_base_output(
         output_amount: u64::try_from(result.destination_amount_swapped).unwrap(),
         input_transfer_fee,
         output_transfer_fee,
-        base_input: false
+        base_input: false,
+        input_mint,
+        output_mint
     });
     require_gte!(constant_after, constant_before);
 
