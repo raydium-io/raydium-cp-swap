@@ -38,4 +38,6 @@ pub enum ErrorCode {
     InsufficientVault,
     #[msg("Invalid fee model")]
     InvalidFeeModel,
+    #[msg("Fee amount is zero")]
+    CollectFeeZero,
 }

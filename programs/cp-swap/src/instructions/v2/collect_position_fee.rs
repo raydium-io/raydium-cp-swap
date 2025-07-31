@@ -1,9 +1,9 @@
+use crate::error::ErrorCode;
 use crate::states::*;
 use crate::utils::token::*;
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 use std::ops::DerefMut;
-
 #[event_cpi]
 #[derive(Accounts)]
 pub struct CollectPositionFee<'info> {
@@ -94,6 +94,9 @@ pub fn collect_position_fee(ctx: Context<CollectPositionFee>) -> Result<()> {
         pool_state.fees_token_0_per_lp,
         pool_state.fees_token_1_per_lp,
     )?;
+    if positon.fees_owed_token_0 == 0 && positon.fees_owed_token_1 == 0 {
+        return err!(ErrorCode::CollectFeeZero);
+    }
     if positon.fees_owed_token_0 > 0 {
         transfer_from_pool_vault_to_user(
             ctx.accounts.authority.to_account_info(),
