@@ -13,7 +13,7 @@ pub struct OpenPosition<'info> {
     /// CHECK: pool vault and position nft mint authority
     #[account(
         seeds = [
-            crate::AUTH_SEED.as_bytes(),
+            crate::AUTH_SEED_V2.as_bytes(),
         ],
         bump,
     )]
@@ -86,7 +86,7 @@ pub fn open_position(ctx: Context<OpenPosition>, with_metadata: bool) -> Result<
         ctx.accounts.position_nft_account.to_account_info(),
         ctx.accounts.token_program_2022.to_account_info(),
         with_metadata,
-        &[&[crate::AUTH_SEED.as_bytes(), &[ctx.bumps.authority]]],
+        &[&[crate::AUTH_SEED_V2.as_bytes(), &[ctx.bumps.authority]]],
     )?;
 
     ctx.accounts.position.initialize(

@@ -36,7 +36,7 @@ pub struct InitializeV2<'info> {
     /// CHECK: pool vault and position nft mint authority
     #[account(
         seeds = [
-            crate::AUTH_SEED.as_bytes(),
+            crate::AUTH_SEED_V2.as_bytes(),
         ],
         bump,
     )]
@@ -291,7 +291,7 @@ pub fn initialize_v2(
         ctx.accounts.position_nft_account.to_account_info(),
         ctx.accounts.token_program_2022.to_account_info(),
         with_metadata,
-        &[&[crate::AUTH_SEED.as_bytes(), &[ctx.bumps.authority]]],
+        &[&[crate::AUTH_SEED_V2.as_bytes(), &[ctx.bumps.authority]]],
     )?;
 
     // Charge the fee to create a pool

@@ -37,7 +37,7 @@ pub struct WithdrawV2<'info> {
     /// CHECK: pool vault authority
     #[account(
         seeds = [
-            crate::AUTH_SEED.as_bytes(),
+            crate::AUTH_SEED_V2.as_bytes(),
         ],
         bump,
     )]
@@ -184,7 +184,7 @@ pub fn withdraw_v2(
         ctx.accounts.token_0_program.to_account_info(),
         token_0_amount,
         ctx.accounts.vault_0_mint.decimals,
-        &[&[crate::AUTH_SEED.as_bytes(), &[ctx.bumps.authority]]],
+        &[&[crate::AUTH_SEED_V2.as_bytes(), &[ctx.bumps.authority]]],
     )?;
 
     transfer_from_pool_vault_to_user(
@@ -195,7 +195,7 @@ pub fn withdraw_v2(
         ctx.accounts.token_1_program.to_account_info(),
         token_1_amount,
         ctx.accounts.vault_1_mint.decimals,
-        &[&[crate::AUTH_SEED.as_bytes(), &[ctx.bumps.authority]]],
+        &[&[crate::AUTH_SEED_V2.as_bytes(), &[ctx.bumps.authority]]],
     )?;
 
     ctx.accounts.position.update_lp_amount(lp_amount, false)?;

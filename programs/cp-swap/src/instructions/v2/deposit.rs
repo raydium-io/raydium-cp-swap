@@ -31,15 +31,6 @@ pub struct DepositV2<'info> {
     )]
     pub position: Account<'info, Position>,
 
-    /// CHECK: pool vault authority
-    #[account(
-        seeds = [
-            crate::AUTH_SEED.as_bytes(),
-        ],
-        bump,
-    )]
-    pub authority: UncheckedAccount<'info>,
-
     #[account(
         mut,
         address = position.pool_id

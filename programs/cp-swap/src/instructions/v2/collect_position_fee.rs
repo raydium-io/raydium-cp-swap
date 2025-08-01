@@ -32,7 +32,7 @@ pub struct CollectPositionFee<'info> {
     /// CHECK: pool vault authority
     #[account(
         seeds = [
-            crate::AUTH_SEED.as_bytes(),
+            crate::AUTH_SEED_V2.as_bytes(),
         ],
         bump,
     )]
@@ -106,7 +106,7 @@ pub fn collect_position_fee(ctx: Context<CollectPositionFee>) -> Result<()> {
             ctx.accounts.token_0_program.to_account_info(),
             positon.fees_owed_token_0,
             ctx.accounts.vault_0_mint.decimals,
-            &[&[crate::AUTH_SEED.as_bytes(), &[ctx.bumps.authority]]],
+            &[&[crate::AUTH_SEED_V2.as_bytes(), &[ctx.bumps.authority]]],
         )?;
     }
 
@@ -119,7 +119,7 @@ pub fn collect_position_fee(ctx: Context<CollectPositionFee>) -> Result<()> {
             ctx.accounts.token_1_program.to_account_info(),
             positon.fees_owed_token_1,
             ctx.accounts.vault_1_mint.decimals,
-            &[&[crate::AUTH_SEED.as_bytes(), &[ctx.bumps.authority]]],
+            &[&[crate::AUTH_SEED_V2.as_bytes(), &[ctx.bumps.authority]]],
         )?;
     }
 

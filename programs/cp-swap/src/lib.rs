@@ -41,6 +41,7 @@ pub mod create_pool_fee_reveiver {
 }
 
 pub const AUTH_SEED: &str = "vault_and_lp_mint_auth_seed";
+pub const AUTH_SEED_V2: &str = "vault_and_nft_mint_auth_seed";
 
 #[program]
 pub mod raydium_cp_swap {
