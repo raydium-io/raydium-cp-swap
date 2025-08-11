@@ -23,6 +23,9 @@ pub struct InitializeWithPermission<'info> {
     #[account(mut)]
     pub payer: Signer<'info>,
 
+    /// CHECK: creator of pool
+    pub creator: UncheckedAccount<'info>,
+
     /// Which config the pool belongs to.
     pub amm_config: Box<Account<'info, AmmConfig>>,
 
@@ -85,7 +88,7 @@ pub struct InitializeWithPermission<'info> {
     )]
     pub payer_token_0: Box<InterfaceAccount<'info, TokenAccount>>,
 
-    /// creator token1 account
+    /// payer token1 account
     #[account(
         mut,
         token::mint = token_1_mint,
@@ -93,7 +96,7 @@ pub struct InitializeWithPermission<'info> {
     )]
     pub payer_token_1: Box<InterfaceAccount<'info, TokenAccount>>,
 
-    /// creator lp token account
+    /// payer lp token account
     #[account(
         init,
         associated_token::mint = lp_mint,
@@ -174,7 +177,6 @@ pub fn initialize_with_permission(
     init_amount_0: u64,
     init_amount_1: u64,
     open_time: u64,
-    creator: Pubkey,
     fee_on: FeeOn,
 ) -> Result<()> {
     if !(is_supported_mint(&ctx.accounts.token_0_mint).unwrap()
@@ -330,7 +332,7 @@ pub fn initialize_with_permission(
         ctx.bumps.authority,
         liquidity,
         open_time,
-        creator,
+        ctx.accounts.creator.key(),
         ctx.accounts.amm_config.key(),
         ctx.accounts.token_0_vault.key(),
         ctx.accounts.token_1_vault.key(),

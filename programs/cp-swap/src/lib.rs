@@ -185,7 +185,6 @@ pub mod raydium_cp_swap {
     /// * `init_amount_0` - the initial amount_0 to deposit
     /// * `init_amount_1` - the initial amount_1 to deposit
     /// * `open_time` - the timestamp allowed for swap
-    /// * `creator` - the pool creator
     /// * `fee_on` - 0：both token0 and token1 (depends on the input), 1: only token0, 2: only token1
     ///
     pub fn initialize_with_permission(
@@ -193,7 +192,6 @@ pub mod raydium_cp_swap {
         init_amount_0: u64,
         init_amount_1: u64,
         open_time: u64,
-        creator: Pubkey,
         fee_on: FeeOn,
     ) -> Result<()> {
         instructions::initialize_with_permission(
@@ -201,7 +199,6 @@ pub mod raydium_cp_swap {
             init_amount_0,
             init_amount_1,
             open_time,
-            creator,
             fee_on,
         )
     }
