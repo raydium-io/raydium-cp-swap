@@ -16,3 +16,6 @@ pub use swap_base_output::*;
 
 pub mod initialize_with_permission;
 pub use initialize_with_permission::*;
+
+pub mod collect_creator_fee;
+pub use collect_creator_fee::*;

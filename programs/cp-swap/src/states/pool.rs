@@ -129,7 +129,7 @@ pub struct PoolState {
 }
 
 impl PoolState {
-    pub const LEN: usize = 8 + 10 * 32 + 1 * 5 + 8 * 7 + 1 * 2 + 6 * 8 + 2 * 8 + 8 * 28;
+    pub const LEN: usize = 8 + 10 * 32 + 1 * 5 + 8 * 7 + 1 * 2 + 6 * 1 + 2 * 8 + 8 * 28;
 
     pub fn initialize(
         &mut self,
@@ -330,32 +330,38 @@ impl PoolState {
         creator_fee: u64,
         direction: TradeDirection,
     ) -> Result<()> {
+        if !self.enable_creator_fee {
+            require_eq!(creator_fee, 0)
+        }
         let is_creator_fee_on_input = self.is_creator_fee_on_input(direction)?;
-        match (direction, is_creator_fee_on_input) {
-            (TradeDirection::ZeroForOne, true) | (TradeDirection::OneForZero, false) => {
+        match direction {
+            TradeDirection::ZeroForOne => {
                 self.protocol_fees_token_0 = self
                     .protocol_fees_token_0
                     .checked_add(protocol_fee)
                     .unwrap();
                 self.fund_fees_token_0 = self.fund_fees_token_0.checked_add(fund_fee).unwrap();
-                if self.enable_creator_fee {
+
+                if is_creator_fee_on_input {
                     self.creator_fees_token_0 =
                         self.creator_fees_token_0.checked_add(creator_fee).unwrap();
                 } else {
-                    require_eq!(creator_fee, 0)
+                    self.creator_fees_token_1 =
+                        self.creator_fees_token_1.checked_add(creator_fee).unwrap();
                 }
             }
-            (TradeDirection::OneForZero, true) | (TradeDirection::ZeroForOne, false) => {
+            TradeDirection::OneForZero => {
                 self.protocol_fees_token_1 = self
                     .protocol_fees_token_1
                     .checked_add(protocol_fee)
                     .unwrap();
                 self.fund_fees_token_1 = self.fund_fees_token_1.checked_add(fund_fee).unwrap();
-                if self.enable_creator_fee {
+                if is_creator_fee_on_input {
                     self.creator_fees_token_1 =
                         self.creator_fees_token_1.checked_add(creator_fee).unwrap();
                 } else {
-                    require_eq!(creator_fee, 0)
+                    self.creator_fees_token_0 =
+                        self.creator_fees_token_0.checked_add(creator_fee).unwrap();
                 }
             }
         };

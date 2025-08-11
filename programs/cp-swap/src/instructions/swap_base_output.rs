@@ -63,14 +63,15 @@ pub fn swap_base_output(
 
     #[cfg(feature = "enable-log")]
     msg!(
-        "input_amount:{}, output_amount:{}, trade_fee:{}, output_transfer_fee:{}, constant_before:{}, constant_after:{}, is_creator_fee_on_input:{}",
+        "input_amount:{}, output_amount:{}, trade_fee:{}, output_transfer_fee:{}, constant_before:{}, constant_after:{}, is_creator_fee_on_input:{}, creator_fee:{}",
         result.input_amount,
         result.output_amount,
         result.trade_fee,
         out_transfer_fee,
         constant_before,
         constant_after,
-        is_creator_fee_on_input
+        is_creator_fee_on_input,
+        result.creator_fee,
     );
 
     // Re-calculate the source amount swapped based on what the curve says

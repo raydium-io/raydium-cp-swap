@@ -124,14 +124,15 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
         .unwrap();
     #[cfg(feature = "enable-log")]
     msg!(
-        "input_amount:{}, output_amount:{}, trade_fee:{}, input_transfer_fee:{}, constant_before:{},constant_after:{}, is_creator_fee_on_input:{}",
+        "input_amount:{}, output_amount:{}, trade_fee:{}, input_transfer_fee:{}, constant_before:{},constant_after:{}, is_creator_fee_on_input:{}, creator_fee:{}",
         result.input_amount,
         result.output_amount,
         result.trade_fee,
         transfer_fee,
         constant_before,
         constant_after,
-        is_creator_fee_on_input
+        is_creator_fee_on_input,
+        result.creator_fee,
     );
     require_eq!(
         u64::try_from(result.input_amount).unwrap(),

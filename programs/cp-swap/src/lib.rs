@@ -139,6 +139,16 @@ pub mod raydium_cp_swap {
         instructions::collect_fund_fee(ctx, amount_0_requested, amount_1_requested)
     }
 
+    /// Collect the creator fee
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx` - The context of accounts
+    ///
+    pub fn collect_creator_fee(ctx: Context<CollectCreatorFee>) -> Result<()> {
+        instructions::collect_creator_fee(ctx)
+    }
+
     /// Create a permission account
     ///
     /// # Arguments
