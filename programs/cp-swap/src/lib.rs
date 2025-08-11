@@ -41,7 +41,6 @@ pub mod create_pool_fee_reveiver {
 }
 
 pub const AUTH_SEED: &str = "vault_and_lp_mint_auth_seed";
-pub const AUTH_SEED_V2: &str = "vault_and_nft_mint_auth_seed";
 
 #[program]
 pub mod raydium_cp_swap {
@@ -63,8 +62,9 @@ pub mod raydium_cp_swap {
         protocol_fee_rate: u64,
         fund_fee_rate: u64,
         create_pool_fee: u64,
+        creator_fee_rate: u64,
     ) -> Result<()> {
-        assert!(trade_fee_rate < FEE_RATE_DENOMINATOR_VALUE);
+        assert!(trade_fee_rate + creator_fee_rate < FEE_RATE_DENOMINATOR_VALUE);
         assert!(protocol_fee_rate <= FEE_RATE_DENOMINATOR_VALUE);
         assert!(fund_fee_rate <= FEE_RATE_DENOMINATOR_VALUE);
         assert!(fund_fee_rate + protocol_fee_rate <= FEE_RATE_DENOMINATOR_VALUE);
@@ -75,6 +75,7 @@ pub mod raydium_cp_swap {
             protocol_fee_rate,
             fund_fee_rate,
             create_pool_fee,
+            creator_fee_rate,
         )
     }
 

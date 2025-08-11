@@ -96,7 +96,6 @@ pub struct PoolState {
     /// bit2, 1: disable swap(value is 4), 0: normal
     pub status: u8,
 
-    /// if pool created by v2 instruction, the value is 0
     pub lp_mint_decimals: u8,
     /// mint0 and mint1 decimals
     pub mint_0_decimals: u8,
