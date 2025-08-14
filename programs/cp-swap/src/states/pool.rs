@@ -22,7 +22,7 @@ pub enum PoolStatusBitFlag {
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug, PartialEq, Eq)]
-pub enum FeeOn {
+pub enum CreatorFeeOn {
     /// Both token0 and token1 can be used as trade fees.
     /// It depends on what the input token is.
     BothToken,
@@ -32,21 +32,21 @@ pub enum FeeOn {
     OnlyToken1,
 }
 
-impl FeeOn {
+impl CreatorFeeOn {
     fn from_u8(value: u8) -> Result<Self> {
         match value {
-            0 => Ok(FeeOn::BothToken),
-            1 => Ok(FeeOn::OnlyToken0),
-            2 => Ok(FeeOn::OnlyToken1),
+            0 => Ok(CreatorFeeOn::BothToken),
+            1 => Ok(CreatorFeeOn::OnlyToken0),
+            2 => Ok(CreatorFeeOn::OnlyToken1),
             _ => Err(ErrorCode::InvalidFeeModel.into()),
         }
     }
 
     pub fn to_u8(&self) -> u8 {
         match self {
-            FeeOn::BothToken => 0u8,
-            FeeOn::OnlyToken0 => 1u8,
-            FeeOn::OnlyToken1 => 2u8,
+            CreatorFeeOn::BothToken => 0u8,
+            CreatorFeeOn::OnlyToken0 => 1u8,
+            CreatorFeeOn::OnlyToken1 => 2u8,
         }
     }
 }
@@ -119,7 +119,7 @@ pub struct PoolState {
     /// 0: both token_0 and token_1 can be used as trade fees. It depends on what the input token is when swapping
     /// 1: only token_0 as trade fee
     /// 2: only token_1 as trade fee
-    pub fee_on: u8,
+    pub creator_fee_on: u8,
     pub enable_creator_fee: bool,
     pub padding1: [u8; 6],
     pub creator_fees_token_0: u64,
@@ -145,7 +145,7 @@ impl PoolState {
         lp_mint: Pubkey,
         lp_mint_decimals: u8,
         observation_key: Pubkey,
-        fee_on: FeeOn,
+        creator_fee_on: CreatorFeeOn,
         enable_creator_fee: bool,
     ) {
         self.amm_config = amm_config.key();
@@ -169,7 +169,7 @@ impl PoolState {
         self.fund_fees_token_1 = 0;
         self.open_time = open_time;
         self.recent_epoch = Clock::get().unwrap().epoch;
-        self.fee_on = fee_on.to_u8();
+        self.creator_fee_on = creator_fee_on.to_u8();
         self.enable_creator_fee = enable_creator_fee;
         self.padding1 = [0u8; 6];
         self.creator_fees_token_0 = 0;
@@ -251,11 +251,11 @@ impl PoolState {
 
     // Determine the method used by the creator to calculate transaction fees
     pub fn is_creator_fee_on_input(&self, direction: TradeDirection) -> Result<bool> {
-        let fee_on = FeeOn::from_u8(self.fee_on)?;
+        let fee_on = CreatorFeeOn::from_u8(self.creator_fee_on)?;
         Ok(match (fee_on, direction) {
-            (FeeOn::BothToken, _) => true,
-            (FeeOn::OnlyToken0, TradeDirection::ZeroForOne) => true,
-            (FeeOn::OnlyToken1, TradeDirection::OneForZero) => true,
+            (CreatorFeeOn::BothToken, _) => true,
+            (CreatorFeeOn::OnlyToken0, TradeDirection::ZeroForOne) => true,
+            (CreatorFeeOn::OnlyToken1, TradeDirection::OneForZero) => true,
             _ => false,
         })
     }

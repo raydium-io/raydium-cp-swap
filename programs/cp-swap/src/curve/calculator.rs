@@ -65,13 +65,13 @@ pub struct SwapResult {
     pub input_amount: u128,
     /// The amount to be transfer to user, including transfer fees
     pub output_amount: u128,
-    /// Amount of source tokens going to pool holders
+    /// Amount of input tokens going to pool holders
     pub trade_fee: u128,
-    /// Amount of source tokens going to protocol
+    /// Amount of input tokens going to protocol
     pub protocol_fee: u128,
-    /// Amount of source tokens going to protocol team
+    /// Amount of input tokens going to protocol team
     pub fund_fee: u128,
-    ///     
+    /// Amount of fee tokens going to creator
     pub creator_fee: u128,
 }
 

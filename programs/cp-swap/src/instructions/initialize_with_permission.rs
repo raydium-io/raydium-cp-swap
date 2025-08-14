@@ -177,7 +177,7 @@ pub fn initialize_with_permission(
     init_amount_0: u64,
     init_amount_1: u64,
     open_time: u64,
-    fee_on: FeeOn,
+    creator_fee_on: CreatorFeeOn,
 ) -> Result<()> {
     if !(is_supported_mint(&ctx.accounts.token_0_mint).unwrap()
         && is_supported_mint(&ctx.accounts.token_1_mint).unwrap())
@@ -341,7 +341,7 @@ pub fn initialize_with_permission(
         ctx.accounts.lp_mint.key(),
         ctx.accounts.lp_mint.decimals,
         ctx.accounts.observation_state.key(),
-        fee_on,
+        creator_fee_on,
         true,
     );
 

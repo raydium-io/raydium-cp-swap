@@ -6,7 +6,7 @@ pub mod utils;
 use crate::curve::fees::FEE_RATE_DENOMINATOR_VALUE;
 use anchor_lang::prelude::*;
 use instructions::*;
-pub use states::FeeOn;
+pub use states::CreatorFeeOn;
 
 #[cfg(not(feature = "no-entrypoint"))]
 solana_security_txt::security_txt! {
@@ -195,21 +195,21 @@ pub mod raydium_cp_swap {
     /// * `init_amount_0` - the initial amount_0 to deposit
     /// * `init_amount_1` - the initial amount_1 to deposit
     /// * `open_time` - the timestamp allowed for swap
-    /// * `fee_on` - 0：both token0 and token1 (depends on the input), 1: only token0, 2: only token1
+    /// * `creator_fee_on` - creator fee model, 0：both token0 and token1 (depends on the input), 1: only token0, 2: only token1
     ///
     pub fn initialize_with_permission(
         ctx: Context<InitializeWithPermission>,
         init_amount_0: u64,
         init_amount_1: u64,
         open_time: u64,
-        fee_on: FeeOn,
+        creator_fee_on: CreatorFeeOn,
     ) -> Result<()> {
         instructions::initialize_with_permission(
             ctx,
             init_amount_0,
             init_amount_1,
             open_time,
-            fee_on,
+            creator_fee_on,
         )
     }
 

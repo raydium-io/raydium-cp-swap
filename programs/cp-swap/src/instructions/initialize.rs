@@ -328,7 +328,7 @@ pub fn initialize(
         ctx.accounts.lp_mint.key(),
         ctx.accounts.lp_mint.decimals,
         ctx.accounts.observation_state.key(),
-        FeeOn::BothToken,
+        CreatorFeeOn::BothToken,
         false,
     );
 
