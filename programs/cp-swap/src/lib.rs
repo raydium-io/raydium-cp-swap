@@ -3,10 +3,10 @@ pub mod error;
 pub mod instructions;
 pub mod states;
 pub mod utils;
-
 use crate::curve::fees::FEE_RATE_DENOMINATOR_VALUE;
 use anchor_lang::prelude::*;
 use instructions::*;
+pub use states::CreatorFeeOn;
 
 #[cfg(not(feature = "no-entrypoint"))]
 solana_security_txt::security_txt! {
@@ -62,8 +62,9 @@ pub mod raydium_cp_swap {
         protocol_fee_rate: u64,
         fund_fee_rate: u64,
         create_pool_fee: u64,
+        creator_fee_rate: u64,
     ) -> Result<()> {
-        assert!(trade_fee_rate < FEE_RATE_DENOMINATOR_VALUE);
+        assert!(trade_fee_rate + creator_fee_rate < FEE_RATE_DENOMINATOR_VALUE);
         assert!(protocol_fee_rate <= FEE_RATE_DENOMINATOR_VALUE);
         assert!(fund_fee_rate <= FEE_RATE_DENOMINATOR_VALUE);
         assert!(fund_fee_rate + protocol_fee_rate <= FEE_RATE_DENOMINATOR_VALUE);
@@ -74,6 +75,7 @@ pub mod raydium_cp_swap {
             protocol_fee_rate,
             fund_fee_rate,
             create_pool_fee,
+            creator_fee_rate,
         )
     }
 
@@ -137,6 +139,36 @@ pub mod raydium_cp_swap {
         instructions::collect_fund_fee(ctx, amount_0_requested, amount_1_requested)
     }
 
+    /// Collect the creator fee
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx` - The context of accounts
+    ///
+    pub fn collect_creator_fee(ctx: Context<CollectCreatorFee>) -> Result<()> {
+        instructions::collect_creator_fee(ctx)
+    }
+
+    /// Create a permission account
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx`- The context of accounts
+    ///
+    pub fn create_permission_pda(ctx: Context<CreatePermissionPda>) -> Result<()> {
+        instructions::create_permission_pda(ctx)
+    }
+
+    /// Close a permission account
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx`- The context of accounts
+    ///
+    pub fn close_permission_pda(ctx: Context<ClosePermissionPda>) -> Result<()> {
+        instructions::close_permission_pda(ctx)
+    }
+
     /// Creates a pool for the given token pair and the initial price
     ///
     /// # Arguments
@@ -155,12 +187,38 @@ pub mod raydium_cp_swap {
         instructions::initialize(ctx, init_amount_0, init_amount_1, open_time)
     }
 
+    /// Create a pool with permission
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx`- The context of accounts
+    /// * `init_amount_0` - the initial amount_0 to deposit
+    /// * `init_amount_1` - the initial amount_1 to deposit
+    /// * `open_time` - the timestamp allowed for swap
+    /// * `creator_fee_on` - creator fee model, 0：both token0 and token1 (depends on the input), 1: only token0, 2: only token1
+    ///
+    pub fn initialize_with_permission(
+        ctx: Context<InitializeWithPermission>,
+        init_amount_0: u64,
+        init_amount_1: u64,
+        open_time: u64,
+        creator_fee_on: CreatorFeeOn,
+    ) -> Result<()> {
+        instructions::initialize_with_permission(
+            ctx,
+            init_amount_0,
+            init_amount_1,
+            open_time,
+            creator_fee_on,
+        )
+    }
+
     /// Deposit lp token to the pool
     ///
     /// # Arguments
     ///
     /// * `ctx`- The context of accounts
-    /// * `lp_token_amount` - Pool token amount to transfer. token_a and token_b amount are set by the current exchange rate and size of the pool
+    /// * `lp_token_amount` - Increased number of LPs
     /// * `maximum_token_0_amount` -  Maximum token 0 amount to deposit, prevents excessive slippage
     /// * `maximum_token_1_amount` - Maximum token 1 amount to deposit, prevents excessive slippage
     ///

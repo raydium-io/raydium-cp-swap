@@ -31,6 +31,7 @@ pub fn update_amm_config(ctx: Context<UpdateAmmConfig>, param: u8, value: u64) -
         }
         Some(5) => amm_config.create_pool_fee = value,
         Some(6) => amm_config.disable_create_pool = if value == 0 { false } else { true },
+        Some(7) => update_creator_fee_rate(amm_config, value),
         _ => return err!(ErrorCode::InvalidInput),
     }
 
@@ -44,7 +45,7 @@ fn update_protocol_fee_rate(amm_config: &mut Account<AmmConfig>, protocol_fee_ra
 }
 
 fn update_trade_fee_rate(amm_config: &mut Account<AmmConfig>, trade_fee_rate: u64) {
-    assert!(trade_fee_rate < FEE_RATE_DENOMINATOR_VALUE);
+    assert!(trade_fee_rate + amm_config.creator_fee_rate <= FEE_RATE_DENOMINATOR_VALUE);
     amm_config.trade_fee_rate = trade_fee_rate;
 }
 
@@ -52,6 +53,11 @@ fn update_fund_fee_rate(amm_config: &mut Account<AmmConfig>, fund_fee_rate: u64)
     assert!(fund_fee_rate <= FEE_RATE_DENOMINATOR_VALUE);
     assert!(fund_fee_rate + amm_config.protocol_fee_rate <= FEE_RATE_DENOMINATOR_VALUE);
     amm_config.fund_fee_rate = fund_fee_rate;
+}
+
+fn update_creator_fee_rate(amm_config: &mut Account<AmmConfig>, creator_fee_rate: u64) {
+    assert!(creator_fee_rate + amm_config.trade_fee_rate <= FEE_RATE_DENOMINATOR_VALUE);
+    amm_config.creator_fee_rate = creator_fee_rate;
 }
 
 fn set_new_protocol_owner(amm_config: &mut Account<AmmConfig>, new_owner: Pubkey) -> Result<()> {

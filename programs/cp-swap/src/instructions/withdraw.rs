@@ -103,7 +103,7 @@ pub fn withdraw(
     minimum_token_1_amount: u64,
 ) -> Result<()> {
     require_gt!(lp_token_amount, 0);
-    require_gt!(ctx.accounts.lp_mint.supply, 0);
+    require_gte!(ctx.accounts.owner_lp_token.amount, lp_token_amount);
     let pool_id = ctx.accounts.pool_state.key();
     let pool_state = &mut ctx.accounts.pool_state.load_mut()?;
     if !pool_state.get_status_by_bit(PoolStatusBitIndex::Withdraw) {
@@ -112,7 +112,7 @@ pub fn withdraw(
     let (total_token_0_amount, total_token_1_amount) = pool_state.vault_amount_without_fee(
         ctx.accounts.token_0_vault.amount,
         ctx.accounts.token_1_vault.amount,
-    );
+    )?;
     let results = CurveCalculator::lp_tokens_to_trading_tokens(
         u128::from(lp_token_amount),
         u128::from(pool_state.lp_supply),

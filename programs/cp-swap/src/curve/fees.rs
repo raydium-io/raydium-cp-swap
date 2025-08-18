@@ -50,6 +50,27 @@ impl Fees {
         )
     }
 
+    /// Calculate the creator fee
+    pub fn creator_fee(amount: u128, creator_fee_rate: u64) -> Option<u128> {
+        ceil_div(
+            amount,
+            u128::from(creator_fee_rate),
+            u128::from(FEE_RATE_DENOMINATOR_VALUE),
+        )
+    }
+
+    pub fn split_creator_fee(
+        total_fee: u128,
+        trade_fee_rate: u64,
+        creator_fee_rate: u64,
+    ) -> Option<u128> {
+        floor_div(
+            total_fee,
+            u128::from(creator_fee_rate),
+            u128::from(trade_fee_rate + creator_fee_rate),
+        )
+    }
+
     pub fn calculate_pre_fee_amount(post_fee_amount: u128, trade_fee_rate: u64) -> Option<u128> {
         if trade_fee_rate == 0 {
             Some(post_fee_amount)
