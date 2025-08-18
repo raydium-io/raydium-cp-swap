@@ -115,6 +115,9 @@ pub fn swap_base_output(
         base_input: false,
         input_mint: ctx.accounts.input_token_mint.key(),
         output_mint: ctx.accounts.output_token_mint.key(),
+        trade_fee: u64::try_from(result.trade_fee).unwrap(),
+        creator_fee: u64::try_from(result.creator_fee).unwrap(),
+        creator_fee_on_input: is_creator_fee_on_input,
     });
     require_gte!(constant_after, constant_before);
 

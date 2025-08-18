@@ -18,9 +18,6 @@ pub trait CheckedCeilDiv: Sized {
 impl CheckedCeilDiv for u128 {
     fn checked_ceil_div(&self, rhs: Self) -> Option<Self> {
         let mut quotient = self.checked_div(rhs)?;
-        if quotient == 0 {
-            return None;
-        }
         let remainder = self.checked_rem(rhs)?;
         if remainder != 0 {
             quotient = quotient.checked_add(1)?;
