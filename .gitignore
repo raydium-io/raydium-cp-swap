@@ -9,3 +9,7 @@ test-ledger
 .yarn
 Makefile
 
+# IDE
+.idea/
+*.iml
+
