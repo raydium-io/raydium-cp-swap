@@ -205,7 +205,7 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
         oracle::block_timestamp(),
         token_0_price_x64,
         token_1_price_x64,
-    );
+    )?;
     pool_state.recent_epoch = Clock::get()?.epoch;
 
     Ok(())

@@ -5,9 +5,11 @@ pub const FEE_RATE_DENOMINATOR_VALUE: u64 = 1_000_000;
 pub struct Fees {}
 
 fn ceil_div(token_amount: u128, fee_numerator: u128, fee_denominator: u128) -> Option<u128> {
+    if fee_denominator == 0 {
+        return None;
+    }
     token_amount
-        .checked_mul(u128::from(fee_numerator))
-        .unwrap()
+        .checked_mul(u128::from(fee_numerator))?
         .checked_add(fee_denominator)?
         .checked_sub(1)?
         .checked_div(fee_denominator)
@@ -15,11 +17,12 @@ fn ceil_div(token_amount: u128, fee_numerator: u128, fee_denominator: u128) -> O
 
 /// Helper function for calculating swap fee
 pub fn floor_div(token_amount: u128, fee_numerator: u128, fee_denominator: u128) -> Option<u128> {
-    Some(
-        token_amount
-            .checked_mul(fee_numerator)?
-            .checked_div(fee_denominator)?,
-    )
+    if fee_denominator == 0 {
+        return None;
+    }
+    token_amount
+        .checked_mul(fee_numerator)?
+        .checked_div(fee_denominator)
 }
 
 impl Fees {

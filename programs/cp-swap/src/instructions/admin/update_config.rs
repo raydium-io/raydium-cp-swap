@@ -45,7 +45,7 @@ fn update_protocol_fee_rate(amm_config: &mut Account<AmmConfig>, protocol_fee_ra
 }
 
 fn update_trade_fee_rate(amm_config: &mut Account<AmmConfig>, trade_fee_rate: u64) {
-    assert!(trade_fee_rate + amm_config.creator_fee_rate <= FEE_RATE_DENOMINATOR_VALUE);
+    assert!(trade_fee_rate + amm_config.creator_fee_rate < FEE_RATE_DENOMINATOR_VALUE);
     amm_config.trade_fee_rate = trade_fee_rate;
 }
 
@@ -56,7 +56,7 @@ fn update_fund_fee_rate(amm_config: &mut Account<AmmConfig>, fund_fee_rate: u64)
 }
 
 fn update_creator_fee_rate(amm_config: &mut Account<AmmConfig>, creator_fee_rate: u64) {
-    assert!(creator_fee_rate + amm_config.trade_fee_rate <= FEE_RATE_DENOMINATOR_VALUE);
+    assert!(creator_fee_rate + amm_config.trade_fee_rate < FEE_RATE_DENOMINATOR_VALUE);
     amm_config.creator_fee_rate = creator_fee_rate;
 }
 
