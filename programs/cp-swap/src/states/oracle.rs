@@ -81,8 +81,6 @@ impl ObservationState {
         token_0_price_x32: u128,
         token_1_price_x32: u128,
     ) -> Result<()> {
-        require_gt!(token_0_price_x32, 0);
-        require_gt!(token_1_price_x32, 0);
         let observation_index = self.observation_index;
         if !self.initialized {
             // skip the pool init price
