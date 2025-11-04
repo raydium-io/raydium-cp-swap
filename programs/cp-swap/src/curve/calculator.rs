@@ -103,14 +103,15 @@ impl CurveCalculator {
         is_creator_fee_on_input: bool,
     ) -> Option<SwapResult> {
         let mut creator_fee = 0;
+        let trade_fee: u128;
 
-        let trade_fee = Fees::trading_fee(input_amount, trade_fee_rate)?;
         let input_amount_less_fees = if is_creator_fee_on_input {
-            creator_fee = Fees::creator_fee(input_amount, creator_fee_rate)?;
-            input_amount
-                .checked_sub(trade_fee)?
-                .checked_sub(creator_fee)?
+            let total_fee = Fees::trading_fee(input_amount, trade_fee_rate + creator_fee_rate)?;
+            creator_fee = Fees::split_creator_fee(total_fee, trade_fee_rate, creator_fee_rate)?;
+            trade_fee = total_fee - creator_fee;
+            input_amount.checked_sub(total_fee)?
         } else {
+            trade_fee = Fees::trading_fee(input_amount, trade_fee_rate)?;
             input_amount.checked_sub(trade_fee)?
         };
         let protocol_fee = Fees::protocol_fee(trade_fee, protocol_fee_rate)?;

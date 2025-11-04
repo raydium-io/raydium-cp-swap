@@ -147,7 +147,7 @@ pub fn swap_base_output(
         oracle::block_timestamp(),
         token_0_price_x64,
         token_1_price_x64,
-    );
+    )?;
     pool_state.recent_epoch = Clock::get()?.epoch;
 
     Ok(())

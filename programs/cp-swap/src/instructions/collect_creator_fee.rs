@@ -93,9 +93,7 @@ pub fn collect_creator_fee(ctx: Context<CollectCreatorFee>) -> Result<()> {
         return err!(ErrorCode::NoFeeCollect);
     }
 
-    let (_auth_pda, auth_bump) =
-        Pubkey::find_program_address(&[crate::AUTH_SEED.as_bytes()], &crate::id());
-    let signer_seeds: &[&[u8]] = &[crate::AUTH_SEED.as_bytes(), &[auth_bump]];
+    let signer_seeds: &[&[u8]] = &[crate::AUTH_SEED.as_bytes(), &[ctx.bumps.authority]];
 
     transfer_from_pool_vault_to_user(
         ctx.accounts.authority.to_account_info(),

@@ -1,3 +1,4 @@
+use crate::error::ErrorCode;
 /// Oracle provides price data useful for a wide variety of system designs
 ///
 use anchor_lang::prelude::*;
@@ -36,8 +37,10 @@ pub struct ObservationState {
     pub pool_id: Pubkey,
     /// observation array
     pub observations: [Observation; OBSERVATION_NUM],
+    /// the last update timestamp
+    pub last_update_timestamp: u64,
     /// padding for feature update
-    pub padding: [u64; 4],
+    pub padding: [u64; 3],
 }
 
 impl Default for ObservationState {
@@ -48,7 +51,8 @@ impl Default for ObservationState {
             observation_index: 0,
             pool_id: Pubkey::default(),
             observations: [Observation::default(); OBSERVATION_NUM],
-            padding: [0u64; 4],
+            last_update_timestamp: 0,
+            padding: [0u64; 3],
         }
     }
 }
@@ -76,7 +80,7 @@ impl ObservationState {
         block_timestamp: u64,
         token_0_price_x32: u128,
         token_1_price_x32: u128,
-    ) {
+    ) -> Result<()> {
         let observation_index = self.observation_index;
         if !self.initialized {
             // skip the pool init price
@@ -84,19 +88,42 @@ impl ObservationState {
             self.observations[observation_index as usize].block_timestamp = block_timestamp;
             self.observations[observation_index as usize].cumulative_token_0_price_x32 = 0;
             self.observations[observation_index as usize].cumulative_token_1_price_x32 = 0;
+            self.last_update_timestamp = block_timestamp;
+            return Ok(());
+        }
+        let last_observation = self.observations[observation_index as usize];
+        let next_observation_index = if observation_index as usize == OBSERVATION_NUM - 1 {
+            0
         } else {
-            let last_observation = self.observations[observation_index as usize];
-            let delta_time = block_timestamp.saturating_sub(last_observation.block_timestamp);
-            if delta_time < OBSERVATION_UPDATE_DURATION_DEFAULT {
-                return;
-            }
-            let delta_token_0_price_x32 = token_0_price_x32.checked_mul(delta_time.into()).unwrap();
-            let delta_token_1_price_x32 = token_1_price_x32.checked_mul(delta_time.into()).unwrap();
-            let next_observation_index = if observation_index as usize == OBSERVATION_NUM - 1 {
-                0
-            } else {
-                observation_index + 1
-            };
+            observation_index + 1
+        };
+        // Ensure last_update_timestamp is set for legacy accounts
+        if self.last_update_timestamp == 0 {
+            self.last_update_timestamp = last_observation.block_timestamp;
+        }
+        let time_since_last_observation =
+            block_timestamp.saturating_sub(last_observation.block_timestamp);
+        // Accumulate using last known price over the elapsed time
+        let time_since_last_update = block_timestamp.saturating_sub(self.last_update_timestamp);
+        if time_since_last_update == 0 || time_since_last_observation == 0 {
+            return Ok(());
+        }
+        let delta_token_0_price_x32 = token_0_price_x32
+            .checked_mul(time_since_last_update.into())
+            .ok_or(ErrorCode::MathOverflow)?;
+        let delta_token_1_price_x32 = token_1_price_x32
+            .checked_mul(time_since_last_update.into())
+            .ok_or(ErrorCode::MathOverflow)?;
+        if time_since_last_observation < OBSERVATION_UPDATE_DURATION_DEFAULT {
+            self.observations[observation_index as usize].cumulative_token_0_price_x32 =
+                last_observation
+                    .cumulative_token_0_price_x32
+                    .wrapping_add(delta_token_0_price_x32);
+            self.observations[observation_index as usize].cumulative_token_1_price_x32 =
+                last_observation
+                    .cumulative_token_1_price_x32
+                    .wrapping_add(delta_token_1_price_x32);
+        } else {
             self.observations[next_observation_index as usize].block_timestamp = block_timestamp;
             // cumulative_token_price_x32 only occupies the first 64 bits, and the remaining 64 bits are used to store overflow data
             self.observations[next_observation_index as usize].cumulative_token_0_price_x32 =
@@ -109,6 +136,8 @@ impl ObservationState {
                     .wrapping_add(delta_token_1_price_x32);
             self.observation_index = next_observation_index;
         }
+        self.last_update_timestamp = block_timestamp;
+        Ok(())
     }
 }
 
