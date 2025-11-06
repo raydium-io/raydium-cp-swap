@@ -137,8 +137,12 @@ pub fn get_transfer_inverse_fee(mint_info: &AccountInfo, post_fee_amount: u64) -
         let epoch = Clock::get()?.epoch;
 
         let transfer_fee = transfer_fee_config.get_epoch_fee(epoch);
-        if u16::from(transfer_fee.transfer_fee_basis_points) == MAX_FEE_BASIS_POINTS {
-            u64::from(transfer_fee.maximum_fee)
+        if u16::from(transfer_fee.transfer_fee_basis_points) >= MAX_FEE_BASIS_POINTS {
+            if post_fee_amount > 0 {
+                return err!(ErrorCode::InvalidInput);
+            } else {
+                0
+            }
         } else {
             let transfer_fee = transfer_fee_config
                 .calculate_inverse_epoch_fee(epoch, post_fee_amount)
@@ -147,7 +151,12 @@ pub fn get_transfer_inverse_fee(mint_info: &AccountInfo, post_fee_amount: u64) -
                 .calculate_epoch_fee(epoch, post_fee_amount.checked_add(transfer_fee).unwrap())
                 .unwrap();
             if transfer_fee != transfer_fee_for_check {
-                return err!(ErrorCode::TransferFeeCalculateNotMatch);
+                // The transfer fee is rounded up, so we need to check if the calculated fee is within a reasonable range
+                if transfer_fee.saturating_sub(transfer_fee_for_check) > 1
+                    && transfer_fee_for_check.saturating_sub(transfer_fee) > 1
+                {
+                    return err!(ErrorCode::TransferFeeCalculateNotMatch);
+                }
             }
             transfer_fee
         }
