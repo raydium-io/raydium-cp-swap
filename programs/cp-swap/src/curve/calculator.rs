@@ -160,7 +160,6 @@ impl CurveCalculator {
         } else {
             let out_amount_with_creator_fee =
                 Fees::calculate_pre_fee_amount(output_amount, creator_fee_rate)?;
-            creator_fee = out_amount_with_creator_fee - output_amount;
             out_amount_with_creator_fee
         };
 
