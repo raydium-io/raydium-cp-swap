@@ -536,7 +536,7 @@ fn main() -> Result<()> {
                 u128::from(total_input_token_amount),
                 u128::from(total_output_token_amount),
                 amm_config_state.trade_fee_rate,
-                amm_config_state.creator_fee_rate,
+                pool_state.adjust_creator_fee_rate(amm_config_state.creator_fee_rate),
                 amm_config_state.protocol_fee_rate,
                 amm_config_state.fund_fee_rate,
                 pool_state.is_creator_fee_on_input(trade_direction).unwrap(),
@@ -688,13 +688,12 @@ fn main() -> Result<()> {
                 )
             };
             let actual_amount_out = amount_out_less_fee.checked_add(out_transfer_fee).unwrap();
-
             let result = raydium_cp_swap::curve::CurveCalculator::swap_base_output(
                 u128::from(actual_amount_out),
                 u128::from(total_input_token_amount),
                 u128::from(total_output_token_amount),
                 amm_config_state.trade_fee_rate,
-                amm_config_state.creator_fee_rate,
+                pool_state.adjust_creator_fee_rate(amm_config_state.creator_fee_rate),
                 amm_config_state.protocol_fee_rate,
                 amm_config_state.fund_fee_rate,
                 pool_state.is_creator_fee_on_input(trade_direction).unwrap(),
