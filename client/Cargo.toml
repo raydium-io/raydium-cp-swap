@@ -7,17 +7,17 @@ edition = "2021"
 devnet = ["raydium-cp-swap/devnet"]
 
 [dependencies]
-anchor-client = { version = "0.31.1" }
-anchor-lang = { version = "0.31.1" }
-anchor-spl = { version = "0.31.1" }
+anchor-client = { version = "0.32.1" }
+anchor-lang = { version = "0.32.1" }
+anchor-spl = { version = "0.32.1" }
 raydium-cp-swap = { path = "../programs/cp-swap", features = [
     "no-entrypoint",
     "client",
 ] }
-solana-sdk = "=2.1.0"
-solana-client = "=2.1.0"
-solana-account-decoder = "=2.1.0"
-solana-transaction-status = "=2.1.0"
+solana-sdk = "2.3.0"
+solana-client = "2.3.0"
+solana-account-decoder = "2.3.0"
+solana-transaction-status = "2.3.0"
 clap = { version = "4.1.8", features = ["derive"] }
 anyhow = "1.0.32"
 rand = "0.9.0"
