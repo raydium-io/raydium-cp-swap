@@ -1,16 +1,16 @@
 use crate::error::ErrorCode;
 use anchor_lang::{prelude::*, system_program};
-use anchor_spl::{
-    token::{Token, TokenAccount},
-    token_2022::{self},
-    token_interface::{initialize_account3, InitializeAccount3, Mint},
-};
-use spl_token_2022::{
+use anchor_spl::token_2022::spl_token_2022::{
     self,
     extension::{
         transfer_fee::{TransferFeeConfig, MAX_FEE_BASIS_POINTS},
         BaseStateWithExtensions, ExtensionType, StateWithExtensions,
     },
+};
+use anchor_spl::{
+    token::{Token, TokenAccount},
+    token_2022::{self},
+    token_interface::{initialize_account3, InitializeAccount3, Mint},
 };
 use std::collections::HashSet;
 
