@@ -9,3 +9,6 @@ test-ledger
 .yarn
 Makefile
 
+# Defensive: never commit Solana keypairs
+*-keypair.json
+keypairs/
