@@ -4,6 +4,7 @@ use anchor_spl::token_2022::spl_token_2022::{
     self,
     extension::{
         transfer_fee::{TransferFeeConfig, MAX_FEE_BASIS_POINTS},
+        transfer_hook::TransferHook,
         BaseStateWithExtensions, ExtensionType, StateWithExtensions,
     },
 };
@@ -186,15 +187,29 @@ pub fn is_supported_mint(mint_account: &InterfaceAccount<Mint>) -> Result<bool> 
     }
     let mint_data = mint_info.try_borrow_data()?;
     let mint = StateWithExtensions::<spl_token_2022::state::Mint>::unpack(&mint_data)?;
+    is_supported_token_2022_mint(&mint)
+}
+
+fn is_supported_token_2022_mint(
+    mint: &StateWithExtensions<spl_token_2022::state::Mint>,
+) -> Result<bool> {
     let extensions = mint.get_extension_types()?;
     for e in extensions {
-        if e != ExtensionType::TransferFeeConfig
-            && e != ExtensionType::MetadataPointer
-            && e != ExtensionType::TokenMetadata
-            && e != ExtensionType::InterestBearingConfig
-            && e != ExtensionType::ScaledUiAmount
-        {
-            return Ok(false);
+        match e {
+            ExtensionType::TransferFeeConfig
+            | ExtensionType::MetadataPointer
+            | ExtensionType::TokenMetadata
+            | ExtensionType::InterestBearingConfig
+            | ExtensionType::ScaledUiAmount => {}
+            ExtensionType::TransferHook => {
+                let transfer_hook = mint.get_extension::<TransferHook>()?;
+                if Option::<Pubkey>::from(transfer_hook.authority).is_some()
+                    || Option::<Pubkey>::from(transfer_hook.program_id).is_some()
+                {
+                    return Ok(false);
+                }
+            }
+            _ => return Ok(false),
         }
     }
     Ok(true)
@@ -296,4 +311,86 @@ pub fn create_or_allocate_account<'a>(
         system_program::assign(cpi_context.with_signer(&[siger_seed]), program_id)?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use anchor_lang::solana_program::program_option::COption;
+    use anchor_spl::token_2022::spl_token_2022::{
+        extension::{
+            permanent_delegate::PermanentDelegate, BaseStateWithExtensionsMut,
+            StateWithExtensionsMut,
+        },
+        state::Mint as SplMint,
+    };
+
+    fn mint_data_with_extensions(extension_types: &[ExtensionType]) -> Vec<u8> {
+        let mint_size =
+            ExtensionType::try_calculate_account_len::<SplMint>(extension_types).unwrap();
+        let mut mint_data = vec![0; mint_size];
+
+        let mut mint_state =
+            StateWithExtensionsMut::<SplMint>::unpack_uninitialized(&mut mint_data).unwrap();
+        mint_state.base = SplMint {
+            mint_authority: COption::None,
+            supply: 0,
+            decimals: 9,
+            is_initialized: true,
+            freeze_authority: COption::None,
+        };
+        mint_state.pack_base();
+        mint_state.init_account_type().unwrap();
+
+        mint_data
+    }
+
+    fn transfer_hook_mint_data(authority: Option<Pubkey>, program_id: Option<Pubkey>) -> Vec<u8> {
+        let mut mint_data = mint_data_with_extensions(&[ExtensionType::TransferHook]);
+
+        let mut mint_state = StateWithExtensionsMut::<SplMint>::unpack(&mut mint_data).unwrap();
+        let transfer_hook = mint_state.init_extension::<TransferHook>(true).unwrap();
+        transfer_hook.authority = authority.try_into().unwrap();
+        transfer_hook.program_id = program_id.try_into().unwrap();
+
+        mint_data
+    }
+
+    fn is_supported_mint_data(mint_data: &[u8]) -> bool {
+        let mint = StateWithExtensions::<SplMint>::unpack(mint_data).unwrap();
+        is_supported_token_2022_mint(&mint).unwrap()
+    }
+
+    #[test]
+    fn disabled_transfer_hook_mint_is_supported() {
+        let mint_data = transfer_hook_mint_data(None, None);
+
+        assert!(is_supported_mint_data(&mint_data));
+    }
+
+    #[test]
+    fn transfer_hook_mint_with_authority_is_rejected() {
+        let mint_data = transfer_hook_mint_data(Some(Pubkey::new_unique()), None);
+
+        assert!(!is_supported_mint_data(&mint_data));
+    }
+
+    #[test]
+    fn transfer_hook_mint_with_program_id_is_rejected() {
+        let mint_data = transfer_hook_mint_data(None, Some(Pubkey::new_unique()));
+
+        assert!(!is_supported_mint_data(&mint_data));
+    }
+
+    #[test]
+    fn unsupported_token_2022_extension_is_rejected() {
+        let mut mint_data = mint_data_with_extensions(&[ExtensionType::PermanentDelegate]);
+
+        let mut mint_state = StateWithExtensionsMut::<SplMint>::unpack(&mut mint_data).unwrap();
+        mint_state
+            .init_extension::<PermanentDelegate>(true)
+            .unwrap();
+
+        assert!(!is_supported_mint_data(&mint_data));
+    }
 }
