@@ -170,6 +170,24 @@ pub struct InitializeWithPermission<'info> {
     pub associated_token_program: Program<'info, AssociatedToken>,
     /// To create a new program account
     pub system_program: Program<'info, System>,
+    // remaining account
+    // #[account(
+    //     seeds = [
+    //     SUPPORT_MINT_SEED.as_bytes(),
+    //     token_0_mint.key().as_ref(),
+    // ],
+    //     bump
+    // )]
+    // pub support_mint0_associated: Account<'info, SupportMintAssociated>,
+
+    // #[account(
+    //     seeds = [
+    //     SUPPORT_MINT_SEED.as_bytes(),
+    //     token_1_mint.key().as_ref(),
+    // ],
+    //     bump
+    // )]
+    // pub support_mint1_associated: Account<'info, SupportMintAssociated>,
 }
 
 pub fn initialize_with_permission(
@@ -179,8 +197,16 @@ pub fn initialize_with_permission(
     open_time: u64,
     creator_fee_on: CreatorFeeOn,
 ) -> Result<()> {
-    if !(is_supported_mint(&ctx.accounts.token_0_mint).unwrap()
-        && is_supported_mint(&ctx.accounts.token_1_mint).unwrap())
+    let mint0_associated_is_initialized = support_mint_associated_is_initialized(
+        &ctx.remaining_accounts,
+        &ctx.accounts.token_0_mint,
+    )?;
+    let mint1_associated_is_initialized = support_mint_associated_is_initialized(
+        &ctx.remaining_accounts,
+        &ctx.accounts.token_1_mint,
+    )?;
+    if !(is_supported_mint(&ctx.accounts.token_0_mint, mint0_associated_is_initialized).unwrap()
+        && is_supported_mint(&ctx.accounts.token_1_mint, mint1_associated_is_initialized).unwrap())
     {
         return err!(ErrorCode::NotSupportMint);
     }

@@ -1,4 +1,5 @@
 use crate::error::ErrorCode;
+use crate::states::*;
 use anchor_lang::{prelude::*, system_program};
 use anchor_spl::token_2022::spl_token_2022::{
     self,
@@ -175,13 +176,48 @@ pub fn get_transfer_fee(mint_info: &AccountInfo, pre_fee_amount: u64) -> Result<
     Ok(fee)
 }
 
-pub fn is_supported_mint(mint_account: &InterfaceAccount<Mint>) -> Result<bool> {
+pub fn support_mint_associated_is_initialized(
+    remaining_accounts: &[AccountInfo],
+    token_mint: &InterfaceAccount<Mint>,
+) -> Result<bool> {
+    if remaining_accounts.len() == 0 {
+        return Ok(false);
+    }
+    let (expect_mint_associated, __bump) = Pubkey::find_program_address(
+        &[SUPPORT_MINT_SEED.as_bytes(), token_mint.key().as_ref()],
+        &crate::id(),
+    );
+    let mut mint_associated_is_initialized = false;
+    for mint_associated_info in remaining_accounts.into_iter() {
+        if *mint_associated_info.owner != crate::id()
+            || mint_associated_info.key() != expect_mint_associated
+        {
+            continue;
+        }
+        let mint_associated = SupportMintAssociated::try_deserialize(
+            &mut mint_associated_info.data.borrow().as_ref(),
+        )?;
+        if mint_associated.mint == token_mint.key() {
+            mint_associated_is_initialized = true;
+            break;
+        }
+    }
+    return Ok(mint_associated_is_initialized);
+}
+
+pub fn is_supported_mint(
+    mint_account: &InterfaceAccount<Mint>,
+    mint_associated_is_initialized: bool,
+) -> Result<bool> {
     let mint_info = mint_account.to_account_info();
     if *mint_info.owner == Token::id() {
         return Ok(true);
     }
     let mint_whitelist: HashSet<&str> = MINT_WHITELIST.into_iter().collect();
     if mint_whitelist.contains(mint_account.key().to_string().as_str()) {
+        return Ok(true);
+    }
+    if mint_associated_is_initialized {
         return Ok(true);
     }
     let mint_data = mint_info.try_borrow_data()?;

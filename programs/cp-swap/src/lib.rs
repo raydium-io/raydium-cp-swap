@@ -286,4 +286,14 @@ pub mod raydium_cp_swap {
     pub fn swap_base_output(ctx: Context<Swap>, max_amount_in: u64, amount_out: u64) -> Result<()> {
         instructions::swap_base_output(ctx, max_amount_in, amount_out)
     }
+
+    /// Create support token22 mint account which can create pool and send rewards while ignoring unsupported extensions.
+    pub fn create_support_mint_associated(ctx: Context<CreateSupportMintAssociated>) -> Result<()> {
+        instructions::create_support_mint_associated(ctx)
+    }
+
+    /// Close support token22 mint account which can create pool and send rewards while ignoring unsupported extensions.
+    pub fn close_support_mint_associated(ctx: Context<CloseSupportMintAssociated>) -> Result<()> {
+        instructions::close_support_mint_associated(ctx)
+    }
 }

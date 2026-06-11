@@ -18,3 +18,9 @@ pub use create_permission_pda::*;
 
 pub mod close_permission_pda;
 pub use close_permission_pda::*;
+
+pub mod create_support_mint_associated;
+pub use create_support_mint_associated::*;
+
+pub mod close_support_mint_associated;
+pub use close_support_mint_associated::*;

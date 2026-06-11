@@ -12,3 +12,6 @@ pub use oracle::*;
 
 pub mod permission;
 pub use permission::*;
+
+pub mod support_mint_associated;
+pub use support_mint_associated::*;
