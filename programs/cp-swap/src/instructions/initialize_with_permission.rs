@@ -157,6 +157,7 @@ pub struct InitializeWithPermission<'info> {
             payer.key().as_ref(),
         ],
         bump,
+        constraint = permission.authority == payer.key() @ ErrorCode::InvalidOwner
     )]
     pub permission: Box<Account<'info, Permission>>,
 

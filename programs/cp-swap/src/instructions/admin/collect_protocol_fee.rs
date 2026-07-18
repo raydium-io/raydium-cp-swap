@@ -57,11 +57,17 @@ pub struct CollectProtocolFee<'info> {
     pub vault_1_mint: Box<InterfaceAccount<'info, Mint>>,
 
     /// The address that receives the collected token_0 protocol fees
-    #[account(mut)]
+    #[account(
+        mut,
+        constraint = recipient_token_0_account.owner == amm_config.protocol_owner @ ErrorCode::InvalidOwner
+    )]
     pub recipient_token_0_account: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// The address that receives the collected token_1 protocol fees
-    #[account(mut)]
+    #[account(
+        mut,
+        constraint = recipient_token_1_account.owner == amm_config.protocol_owner @ ErrorCode::InvalidOwner
+    )]
     pub recipient_token_1_account: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// The SPL program to perform token transfers

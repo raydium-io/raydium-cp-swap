@@ -4,6 +4,7 @@ pub mod instructions;
 pub mod states;
 pub mod utils;
 use crate::curve::fees::FEE_RATE_DENOMINATOR_VALUE;
+use crate::error::ErrorCode;
 use anchor_lang::prelude::*;
 use instructions::*;
 pub use states::CreatorFeeOn;
@@ -64,10 +65,11 @@ pub mod raydium_cp_swap {
         create_pool_fee: u64,
         creator_fee_rate: u64,
     ) -> Result<()> {
-        assert!(trade_fee_rate + creator_fee_rate < FEE_RATE_DENOMINATOR_VALUE);
-        assert!(protocol_fee_rate <= FEE_RATE_DENOMINATOR_VALUE);
-        assert!(fund_fee_rate <= FEE_RATE_DENOMINATOR_VALUE);
-        assert!(fund_fee_rate + protocol_fee_rate <= FEE_RATE_DENOMINATOR_VALUE);
+        require!(trade_fee_rate + creator_fee_rate < FEE_RATE_DENOMINATOR_VALUE, ErrorCode::InvalidInput);
+        require!(protocol_fee_rate <= FEE_RATE_DENOMINATOR_VALUE, ErrorCode::InvalidInput);
+        require!(fund_fee_rate <= FEE_RATE_DENOMINATOR_VALUE, ErrorCode::InvalidInput);
+        require!(fund_fee_rate + protocol_fee_rate <= trade_fee_rate, ErrorCode::InvalidInput);
+        require!(creator_fee_rate <= trade_fee_rate, ErrorCode::InvalidInput);
         instructions::create_amm_config(
             ctx,
             index,
