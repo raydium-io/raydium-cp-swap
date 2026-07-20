@@ -36,7 +36,7 @@ pub fn transfer_from_user_to_pool_vault<'a>(
     }
     token_2022::transfer_checked(
         CpiContext::new(
-            token_program.to_account_info(),
+            *token_program.key,
             token_2022::TransferChecked {
                 from,
                 to: to_vault,
@@ -64,7 +64,7 @@ pub fn transfer_from_pool_vault_to_user<'a>(
     }
     token_2022::transfer_checked(
         CpiContext::new_with_signer(
-            token_program.to_account_info(),
+            *token_program.key,
             token_2022::TransferChecked {
                 from: from_vault,
                 to,
@@ -89,7 +89,7 @@ pub fn token_mint_to<'a>(
 ) -> Result<()> {
     token_2022::mint_to(
         CpiContext::new_with_signer(
-            token_program,
+            *token_program.key,
             token_2022::MintTo {
                 to: destination,
                 authority,
@@ -111,7 +111,7 @@ pub fn token_burn<'a>(
 ) -> Result<()> {
     token_2022::burn(
         CpiContext::new_with_signer(
-            token_program.to_account_info(),
+            *token_program.key,
             token_2022::Burn {
                 from,
                 authority,
@@ -270,7 +270,7 @@ pub fn create_token_account<'a>(
         space,
     )?;
     initialize_account3(CpiContext::new(
-        token_program.to_account_info(),
+        *token_program.key,
         InitializeAccount3 {
             account: token_account.to_account_info(),
             mint: mint_account.to_account_info(),
@@ -296,7 +296,7 @@ pub fn create_or_allocate_account<'a>(
             from: payer,
             to: target_account.clone(),
         };
-        let cpi_context = CpiContext::new(system_program.clone(), cpi_accounts);
+        let cpi_context = CpiContext::new(*system_program.key, cpi_accounts);
         system_program::create_account(
             cpi_context.with_signer(&[siger_seed]),
             lamports,
@@ -313,13 +313,13 @@ pub fn create_or_allocate_account<'a>(
                 from: payer.to_account_info(),
                 to: target_account.clone(),
             };
-            let cpi_context = CpiContext::new(system_program.clone(), cpi_accounts);
+            let cpi_context = CpiContext::new(*system_program.key, cpi_accounts);
             system_program::transfer(cpi_context, required_lamports)?;
         }
         let cpi_accounts = system_program::Allocate {
             account_to_allocate: target_account.clone(),
         };
-        let cpi_context = CpiContext::new(system_program.clone(), cpi_accounts);
+        let cpi_context = CpiContext::new(*system_program.key, cpi_accounts);
         system_program::allocate(
             cpi_context.with_signer(&[siger_seed]),
             u64::try_from(space).unwrap(),
@@ -328,7 +328,7 @@ pub fn create_or_allocate_account<'a>(
         let cpi_accounts = system_program::Assign {
             account_to_assign: target_account.clone(),
         };
-        let cpi_context = CpiContext::new(system_program.clone(), cpi_accounts);
+        let cpi_context = CpiContext::new(*system_program.key, cpi_accounts);
         system_program::assign(cpi_context.with_signer(&[siger_seed]), program_id)?;
     }
     Ok(())

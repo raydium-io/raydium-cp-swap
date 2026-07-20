@@ -5,7 +5,7 @@ use crate::states::*;
 use crate::utils::token::*;
 use anchor_lang::prelude::*;
 use anchor_spl::{
-    memo::spl_memo,
+    memo,
     token::Token,
     token_interface::{Mint, Token2022, TokenAccount},
 };
@@ -91,7 +91,7 @@ pub struct Withdraw<'info> {
     /// memo program
     /// CHECK:
     #[account(
-        address = spl_memo::id()
+        address = memo::ID
     )]
     pub memo_program: UncheckedAccount<'info>,
 }

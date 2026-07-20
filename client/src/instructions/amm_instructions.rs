@@ -1,10 +1,11 @@
 use anchor_client::{Client, Cluster};
+use anchor_lang::solana_program::system_program;
 use anchor_spl::{
-    associated_token::spl_associated_token_account, memo::spl_memo, token::spl_token,
+    associated_token::spl_associated_token_account, memo, token::spl_token,
     token_2022::spl_token_2022,
 };
 use anyhow::Result;
-use solana_sdk::{instruction::Instruction, pubkey::Pubkey, system_program, sysvar};
+use solana_sdk::{instruction::Instruction, pubkey::Pubkey, sysvar};
 
 use raydium_cp_swap::accounts as raydium_cp_accounts;
 use raydium_cp_swap::instruction as raydium_cp_instructions;
@@ -101,7 +102,7 @@ pub fn initialize_pool_instr(
             lp_mint: lp_mint_key,
             creator_token_0: user_token_0_account,
             creator_token_1: user_token_1_account,
-            creator_lp_token: spl_associated_token_account::get_associated_token_address(
+            creator_lp_token: spl_associated_token_account::address::get_associated_token_address(
                 &program.payer(),
                 &lp_mint_key,
             ),
@@ -112,7 +113,7 @@ pub fn initialize_pool_instr(
             token_program: spl_token::id(),
             token_0_program,
             token_1_program,
-            associated_token_program: spl_associated_token_account::id(),
+            associated_token_program: spl_associated_token_account::program::ID,
             system_program: system_program::id(),
             rent: sysvar::rent::id(),
         })
@@ -121,7 +122,7 @@ pub fn initialize_pool_instr(
             init_amount_1,
             open_time,
         })
-        .instructions()?;
+        .instructions();
     if random_pool_id.is_some() {
         // update account signer as true for random pool
         for account in instructions[0].accounts.iter_mut() {
@@ -179,7 +180,7 @@ pub fn deposit_instr(
             maximum_token_0_amount,
             maximum_token_1_amount,
         })
-        .instructions()?;
+        .instructions();
     Ok(instructions)
 }
 
@@ -222,14 +223,14 @@ pub fn withdraw_instr(
             vault_0_mint: token_0_mint,
             vault_1_mint: token_1_mint,
             lp_mint: token_lp_mint,
-            memo_program: spl_memo::id(),
+            memo_program: memo::ID,
         })
         .args(raydium_cp_instructions::Withdraw {
             lp_token_amount,
             minimum_token_0_amount,
             minimum_token_1_amount,
         })
-        .instructions()?;
+        .instructions();
     Ok(instructions)
 }
 
@@ -278,7 +279,7 @@ pub fn swap_base_input_instr(
             amount_in,
             minimum_amount_out,
         })
-        .instructions()?;
+        .instructions();
     Ok(instructions)
 }
 
@@ -327,6 +328,6 @@ pub fn swap_base_output_instr(
             max_amount_in,
             amount_out,
         })
-        .instructions()?;
+        .instructions();
     Ok(instructions)
 }
