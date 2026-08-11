@@ -19,3 +19,6 @@ pub use initialize_with_permission::*;
 
 pub mod collect_creator_fee;
 pub use collect_creator_fee::*;
+
+pub mod collect_creator_fee_permissionless;
+pub use collect_creator_fee_permissionless::*;
