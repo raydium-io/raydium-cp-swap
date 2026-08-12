@@ -3,11 +3,19 @@ use crate::states::*;
 use anchor_lang::prelude::*;
 use std::ops::DerefMut;
 
+pub mod create_permission_pda_owner {
+    use super::{pubkey, Pubkey};
+    #[cfg(feature = "devnet")]
+    pub const ID: Pubkey = pubkey!("DRayJkSKsijbcEqdooK4uUGcT6gjbEuwUh7V6Nmqct7M");
+    #[cfg(not(feature = "devnet"))]
+    pub const ID: Pubkey = pubkey!("RayqjDRsNEFuPcDE4JpEScwJvwusmHYuNZ3MgET4D7U");
+}
+
 #[derive(Accounts)]
 pub struct CreatePermissionPda<'info> {
     #[account(
         mut,
-        address = crate::admin::ID @ ErrorCode::InvalidOwner
+        constraint = (owner.key() == crate::admin::ID || owner.key() == crate::create_permission_pda_owner::ID) @ ErrorCode::InvalidOwner
     )]
     pub owner: Signer<'info>,
 
