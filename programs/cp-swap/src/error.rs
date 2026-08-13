@@ -40,4 +40,7 @@ pub enum ErrorCode {
     InvalidFeeModel,
     #[msg("Fee is zero")]
     NoFeeCollect,
+    /// The caller is not authorized to update the LP metadata
+    #[msg("Not authorized to update LP metadata")]
+    NotLpMetadataCreator,
 }

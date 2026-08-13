@@ -19,3 +19,12 @@ pub use initialize_with_permission::*;
 
 pub mod collect_creator_fee;
 pub use collect_creator_fee::*;
+
+pub mod create_lp_metadata;
+pub use create_lp_metadata::*;
+
+pub mod update_lp_metadata;
+pub use update_lp_metadata::*;
+
+pub mod reclaim_lp_metadata;
+pub use reclaim_lp_metadata::*;

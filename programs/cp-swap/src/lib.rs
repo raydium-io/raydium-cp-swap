@@ -296,4 +296,52 @@ pub mod raydium_cp_swap {
     pub fn close_support_mint_associated(ctx: Context<CloseSupportMintAssociated>) -> Result<()> {
         instructions::close_support_mint_associated(ctx)
     }
+
+    /// Create Metaplex metadata for the pool's LP token. Permissionless and
+    /// first-come-first-serve: whoever creates it becomes its sole updater.
+    /// Charges 0.1 SOL to the Raydium fee receiver.
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx`- The context of accounts
+    /// * `name` - The name of the LP token
+    /// * `symbol` - The symbol of the LP token
+    /// * `uri` - The metadata URI of the LP token
+    ///
+    pub fn create_lp_metadata(
+        ctx: Context<CreateLpMetadata>,
+        name: String,
+        symbol: String,
+        uri: String,
+    ) -> Result<()> {
+        instructions::create_lp_metadata(ctx, name, symbol, uri)
+    }
+
+    /// Update the Metaplex metadata for the pool's LP token. The creator, the
+    /// pool creator, or the protocol admin may update it.
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx`- The context of accounts
+    /// * `name` - The name of the LP token
+    /// * `symbol` - The symbol of the LP token
+    /// * `uri` - The metadata URI of the LP token
+    ///
+    pub fn update_lp_metadata(
+        ctx: Context<UpdateLpMetadata>,
+        name: String,
+        symbol: String,
+        uri: String,
+    ) -> Result<()> {
+        instructions::update_lp_metadata(ctx, name, symbol, uri)
+    }
+
+    /// Reclaim the LP metadata update authority. The permissionless
+    /// first-come-first-serve claim ("goldrush") is intentional, but it is a
+    /// liability risk: a griefer can front-run the pool creator, or the original
+    /// creator can lose their key. Escape hatch: the pool creator or the protocol
+    /// admin may reassign the updater to themselves.
+    pub fn reclaim_lp_metadata(ctx: Context<ReclaimLpMetadata>) -> Result<()> {
+        instructions::reclaim_lp_metadata(ctx)
+    }
 }
