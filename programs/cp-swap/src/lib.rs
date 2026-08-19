@@ -149,6 +149,19 @@ pub mod raydium_cp_swap {
         instructions::collect_creator_fee(ctx)
     }
 
+    /// Collect the creator fee, anyone can call it since the fee is always sent to the
+    /// pool creator, the payer only funds the creation of the creator's token accounts.
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx` - The context of accounts
+    ///
+    pub fn collect_creator_fee_permissionless(
+        ctx: Context<CollectCreatorFeePermissionless>,
+    ) -> Result<()> {
+        instructions::collect_creator_fee_permissionless(ctx)
+    }
+
     /// Create a permission account
     ///
     /// # Arguments
