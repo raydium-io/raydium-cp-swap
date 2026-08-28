@@ -9,10 +9,20 @@ pub const POOL_VAULT_SEED: &str = "pool_vault";
 
 pub const Q32: u128 = (u32::MAX as u128) + 1; // 2^32
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PoolStatusBitIndex {
+    /// Bit 0: deposits are disabled when set.
     Deposit,
+    /// Bit 1: withdrawals are disabled when set.
     Withdraw,
+    /// Bit 2: swaps are disabled when set.
     Swap,
+}
+
+impl PoolStatusBitIndex {
+    pub const fn mask(self) -> u8 {
+        1 << (self as u8)
+    }
 }
 
 #[derive(PartialEq, Eq)]
@@ -90,10 +100,12 @@ pub struct PoolState {
     pub observation_key: Pubkey,
 
     pub auth_bump: u8,
-    /// Bitwise representation of the state of the pool
-    /// bit0, 1: disable deposit(value is 1), 0: normal
-    /// bit1, 1: disable withdraw(value is 2), 0: normal
-    /// bit2, 1: disable swap(value is 4), 0: normal
+    /// Bitwise representation of the pool operation state.
+    /// A cleared bit means the operation is enabled, and a set bit disables it:
+    /// bit 0: disable deposit (mask 1)
+    /// bit 1: disable withdraw (mask 2)
+    /// bit 2: disable swap (mask 4)
+    /// bits 3..7 are reserved and do not affect operation gating.
     pub status: u8,
 
     pub lp_mint_decimals: u8,
@@ -182,7 +194,7 @@ impl PoolState {
     }
 
     pub fn set_status_by_bit(&mut self, bit: PoolStatusBitIndex, flag: PoolStatusBitFlag) {
-        let s = u8::from(1) << (bit as u8);
+        let s = bit.mask();
         if flag == PoolStatusBitFlag::Disable {
             self.status = self.status.bitor(s);
         } else {
@@ -191,9 +203,9 @@ impl PoolState {
         }
     }
 
-    /// Get status by bit, if it is `noraml` status, return true
+    /// Get status by bit. Returns true when the operation is enabled.
     pub fn get_status_by_bit(&self, bit: PoolStatusBitIndex) -> bool {
-        let status = u8::from(1) << (bit as u8);
+        let status = bit.mask();
         self.status.bitand(status) == 0
     }
 
@@ -457,6 +469,48 @@ pub mod pool_test {
                 pool_state.get_status_by_bit(PoolStatusBitIndex::Withdraw),
                 false
             );
+        }
+
+        #[test]
+        fn status_bit_masks_match_operation_indices() {
+            assert_eq!(PoolStatusBitIndex::Deposit.mask(), 1);
+            assert_eq!(PoolStatusBitIndex::Withdraw.mask(), 2);
+            assert_eq!(PoolStatusBitIndex::Swap.mask(), 4);
+        }
+
+        #[test]
+        fn all_status_values_gate_only_operation_bits() {
+            let mut pool_state = PoolState::default();
+
+            for status in 0..=u8::MAX {
+                pool_state.set_status(status);
+
+                assert_eq!(
+                    pool_state.get_status_by_bit(PoolStatusBitIndex::Deposit),
+                    status & PoolStatusBitIndex::Deposit.mask() == 0,
+                    "deposit status mismatch for {status}"
+                );
+                assert_eq!(
+                    pool_state.get_status_by_bit(PoolStatusBitIndex::Withdraw),
+                    status & PoolStatusBitIndex::Withdraw.mask() == 0,
+                    "withdraw status mismatch for {status}"
+                );
+                assert_eq!(
+                    pool_state.get_status_by_bit(PoolStatusBitIndex::Swap),
+                    status & PoolStatusBitIndex::Swap.mask() == 0,
+                    "swap status mismatch for {status}"
+                );
+            }
+        }
+
+        #[test]
+        fn reserved_status_bits_do_not_disable_operations() {
+            let mut pool_state = PoolState::default();
+            pool_state.set_status(0b1111_1000);
+
+            assert!(pool_state.get_status_by_bit(PoolStatusBitIndex::Deposit));
+            assert!(pool_state.get_status_by_bit(PoolStatusBitIndex::Withdraw));
+            assert!(pool_state.get_status_by_bit(PoolStatusBitIndex::Swap));
         }
     }
 }
