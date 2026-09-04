@@ -40,6 +40,14 @@ pub mod create_pool_fee_reveiver {
     pub const ID: Pubkey = pubkey!("DNXgeM9EiiaAbaWvwjHj9fQQLAX5ZsfHyvmYUNRAdNC8");
 }
 
+pub mod collect_lamports {
+    use super::{pubkey, Pubkey};
+    #[cfg(feature = "devnet")]
+    pub const ID: Pubkey = pubkey!("DRaydJNq54dSDHUqYCE3G8YySgaXfZucbh7dTXw9fBMs");
+    #[cfg(not(feature = "devnet"))]
+    pub const ID: Pubkey = pubkey!("RayGkhY93thaTgCv98sx1pNLgBHhJDxWUeZXp4bjmnp");
+}
+
 pub const AUTH_SEED: &str = "vault_and_lp_mint_auth_seed";
 
 #[program]
@@ -308,5 +316,12 @@ pub mod raydium_cp_swap {
     /// Close support token22 mint account which can create pool and send rewards while ignoring unsupported extensions.
     pub fn close_support_mint_associated(ctx: Context<CloseSupportMintAssociated>) -> Result<()> {
         instructions::close_support_mint_associated(ctx)
+    }
+
+    /// Collect excess lamports, including accounts for SPL tokens owned by authority and Program PDA accounts.
+    pub fn collect_excess_lamports<'info>(
+        ctx: Context<'info, CollectExcessLamports<'info>>,
+    ) -> Result<()> {
+        instructions::collect_excess_lamports(ctx)
     }
 }

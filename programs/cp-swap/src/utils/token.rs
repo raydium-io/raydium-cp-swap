@@ -123,6 +123,49 @@ pub fn token_burn<'a>(
     )
 }
 
+// Construct spl `withdraw_excess_lamports` instruction
+fn withdraw_excess_lamports_instruction(
+    token_program_id: &Pubkey,
+    source: &Pubkey,
+    destination: &Pubkey,
+    authority: &Pubkey,
+) -> instruction::Instruction {
+    instruction::Instruction {
+        program_id: *token_program_id,
+        accounts: vec![
+            AccountMeta::new(*source, false),
+            AccountMeta::new(*destination, false),
+            AccountMeta::new_readonly(*authority, true),
+        ],
+        data: vec![38],
+    }
+}
+
+/// Issue a spl_token `withdraw_excess_lamports` instruction.
+pub fn withdraw_excess_lamports<'a>(
+    token_program: AccountInfo<'a>,
+    source: AccountInfo<'a>,
+    destination: AccountInfo<'a>,
+    authority: AccountInfo<'a>,
+    amm_seed: &[u8],
+    nonce: u8,
+) -> Result<()> {
+    let authority_signature_seeds = [amm_seed, &[nonce]];
+    let signers = &[&authority_signature_seeds[..]];
+    let ix = withdraw_excess_lamports_instruction(
+        token_program.key,
+        source.key,
+        destination.key,
+        authority.key,
+    );
+    anchor_lang::solana_program::program::invoke_signed(
+        &ix,
+        &[source, destination, authority, token_program],
+        signers,
+    )
+    .map_err(Into::into)
+}
+
 /// Calculate the fee for output amount
 pub fn get_transfer_inverse_fee(mint_info: &AccountInfo, post_fee_amount: u64) -> Result<u64> {
     if *mint_info.owner == Token::id() {
