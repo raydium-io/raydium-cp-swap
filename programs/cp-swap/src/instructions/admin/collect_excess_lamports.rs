@@ -7,7 +7,7 @@ use anchor_spl::token_interface::Token2022;
 pub struct CollectExcessLamports<'info> {
     /// Only admin or collect_lamports can collect lamports
     #[account(
-        mut, 
+        mut,
         constraint = (collect_lamports_wallet.key() == crate::collect_lamports::ID || collect_lamports_wallet.key() == crate::admin::ID) @ ErrorCode::InvalidOwner
     )]
     pub collect_lamports_wallet: Signer<'info>,
@@ -36,7 +36,7 @@ pub fn collect_excess_lamports<'info>(
 ) -> Result<()> {
     for source_lamports_account in ctx.remaining_accounts.into_iter() {
         if *source_lamports_account.owner == Token::id() {
-            withdraw_excess_lamports(
+            withdraw_excess_lamports_from_token(
                 ctx.accounts.token_program.to_account_info(),
                 source_lamports_account.to_account_info(),
                 ctx.accounts.collect_lamports_wallet.to_account_info(),
@@ -45,7 +45,7 @@ pub fn collect_excess_lamports<'info>(
                 ctx.bumps.authority,
             )?;
         } else if *source_lamports_account.owner == Token2022::id() {
-            withdraw_excess_lamports(
+            withdraw_excess_lamports_from_token(
                 ctx.accounts.token_program_2022.to_account_info(),
                 source_lamports_account.to_account_info(),
                 ctx.accounts.collect_lamports_wallet.to_account_info(),
@@ -62,7 +62,7 @@ pub fn collect_excess_lamports<'info>(
                 .ok_or(ProgramError::InsufficientFunds)?;
 
             if excess_lamports == 0 {
-                return Ok(());
+                continue;
             }
 
             {

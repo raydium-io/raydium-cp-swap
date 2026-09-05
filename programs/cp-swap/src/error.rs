@@ -40,4 +40,6 @@ pub enum ErrorCode {
     InvalidFeeModel,
     #[msg("Fee is zero")]
     NoFeeCollect,
+    #[msg("Lamports calculate error")]
+    LamportsCalculateError,
 }

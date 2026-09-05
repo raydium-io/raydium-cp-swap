@@ -646,3 +646,32 @@ export async function swap_base_output(
 
   return tx;
 }
+
+export async function collectExcessLamports(
+  program: Program<RaydiumCpSwap>,
+  wallet: Signer,
+  sourceLamportsAccounts: PublicKey[],
+  confirmOptions?: ConfirmOptions
+) {
+  const [auth] = await getAuthAddress(program.programId);
+
+  const tx = await program.methods
+    .collectExcessLamports()
+    .accounts({
+      collectLamportsWallet: wallet.publicKey,
+      authority: auth,
+      tokenProgram: TOKEN_PROGRAM_ID,
+      tokenProgram2022: TOKEN_2022_PROGRAM_ID,
+    })
+    .remainingAccounts(
+      sourceLamportsAccounts.map((pubkey) => ({
+        pubkey,
+        isSigner: false,
+        isWritable: true,
+      }))
+    )
+    .signers([wallet])
+    .rpc(confirmOptions);
+
+  return tx;
+}

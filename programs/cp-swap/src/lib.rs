@@ -25,10 +25,17 @@ declare_id!("DRaycpLY18LhpbydsBWbVJtxpNv9oXPgjRSfpF2bWpYb");
 declare_id!("CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C");
 
 pub mod admin {
-    use super::{pubkey, Pubkey};
+    use super::Pubkey;
+    #[cfg(not(feature = "localnet"))]
+    use super::pubkey;
+    #[cfg(feature = "localnet")]
+    pub const ID: Pubkey = Pubkey::from_str_const(env!(
+        "CPSWAP_LOCALNET_ADMIN",
+        "the `localnet` feature needs CPSWAP_LOCALNET_ADMIN=<admin pubkey> at build time (run `yarn test:local-admin`)"
+    ));
     #[cfg(feature = "devnet")]
     pub const ID: Pubkey = pubkey!("DRayqG9RXYi8WHgWEmRQGrUWRWbhjYWYkCRJDd6JBBak");
-    #[cfg(not(feature = "devnet"))]
+    #[cfg(all(not(feature = "devnet"), not(feature = "localnet")))]
     pub const ID: Pubkey = pubkey!("GThUX1Atko4tqhN2NaiTazWSeFWMuiUvfFnyJyUghFMJ");
 }
 
