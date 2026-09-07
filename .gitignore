@@ -1,11 +1,18 @@
 
-.anchor
+.*/
 .DS_Store
 target
+KeyPairs
+*.json
+!package.json
+!tsconfig.json
+client/target
 **/*.rs.bk
 node_modules
 test-ledger
-.vscode
-.yarn
+yarn.lock
 Makefile
-
+programs/amm/proptest-regressions
+runbooks
+txtx.yml
+.surfpool/

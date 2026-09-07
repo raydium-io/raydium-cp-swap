@@ -187,11 +187,12 @@ pub fn unwrap_lamports<'a>(
 /// works for both legacy accounts and Token-2022 accounts that carry extensions.
 fn token_account_native_and_amount(account: &AccountInfo) -> Result<(bool, u64)> {
     let data = account.try_borrow_data()?;
-    let state =
-        StateWithExtensions::<spl_token_2022::state::Account>::unpack(&data).map_err(|_| {
-            error!(ErrorCode::LamportsCalculateError)
-        })?;
-    Ok((state.base.is_native.is_some(), state.base.amount))
+    if let Ok(state) = StateWithExtensions::<spl_token_2022::state::Account>::unpack(&data) {
+        return Ok((state.base.is_native.is_some(), state.base.amount));
+    } else {
+        // process token mint account
+        return Ok((false, 0));
+    }
 }
 
 /// Collect the excess lamports sitting on a token account owned by `authority`.

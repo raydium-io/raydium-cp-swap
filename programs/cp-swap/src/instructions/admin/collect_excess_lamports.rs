@@ -54,38 +54,46 @@ pub fn collect_excess_lamports<'info>(
                 ctx.bumps.authority,
             )?;
         } else if *source_lamports_account.owner == crate::id() {
-            let rent = Rent::get()?;
-            let minimum_balance = rent.minimum_balance(source_lamports_account.data_len());
-            let source_lamports = source_lamports_account.lamports();
-            let excess_lamports = source_lamports
-                .checked_sub(minimum_balance)
-                .ok_or(ProgramError::InsufficientFunds)?;
-
-            if excess_lamports == 0 {
-                continue;
-            }
-
-            {
-                let mut source_lamports_ref = source_lamports_account.try_borrow_mut_lamports()?;
-
-                **source_lamports_ref = source_lamports
-                    .checked_sub(excess_lamports)
-                    .ok_or(ProgramError::InsufficientFunds)?;
-            }
-
-            {
-                let mut destination_lamports_ref = ctx
-                    .accounts
-                    .collect_lamports_wallet
-                    .try_borrow_mut_lamports()?;
-
-                **destination_lamports_ref = destination_lamports_ref
-                    .checked_add(excess_lamports)
-                    .ok_or(ProgramError::ArithmeticOverflow)?;
-            }
+            withdraw_excess_lamports_from_pda(
+                source_lamports_account,
+                &ctx.accounts.collect_lamports_wallet.to_account_info(),
+            )?;
         } else {
             continue;
         }
     }
     Ok(())
+}
+
+fn withdraw_excess_lamports_from_pda(
+    source_lamports_account: &AccountInfo,
+    collect_lamports_wallet: &AccountInfo,
+) -> Result<()> {
+    let rent = Rent::get()?;
+    let minimum_balance = rent.minimum_balance(source_lamports_account.data_len());
+    let source_lamports = source_lamports_account.lamports();
+    let excess_lamports = source_lamports
+        .checked_sub(minimum_balance)
+        .ok_or(ProgramError::InsufficientFunds)?;
+
+    if excess_lamports == 0 {
+        return Ok(());
+    }
+
+    {
+        let mut source_lamports_ref = source_lamports_account.try_borrow_mut_lamports()?;
+
+        **source_lamports_ref = source_lamports
+            .checked_sub(excess_lamports)
+            .ok_or(ProgramError::InsufficientFunds)?;
+    }
+
+    {
+        let mut destination_lamports_ref = collect_lamports_wallet.try_borrow_mut_lamports()?;
+
+        **destination_lamports_ref = destination_lamports_ref
+            .checked_add(excess_lamports)
+            .ok_or(ProgramError::ArithmeticOverflow)?;
+    }
+    return Ok(());
 }

@@ -6,6 +6,7 @@ import {
   TOKEN_PROGRAM_ID,
   createWrappedNativeAccount,
   getAccount,
+  getMint,
 } from "@solana/spl-token";
 import {
   Keypair,
@@ -194,6 +195,54 @@ describe("collect excess lamports test", () => {
     assert.equal(
       await anchor.getProvider().connection.getBalance(vaultLegacy),
       await getRentMinimumBalance(vaultLegacy)
+    );
+  });
+
+  it("collect excess lamports from the pool lp mint, mixed with a vault and a pda", async function () {
+    // the lp mint is created with the legacy token program, so this needs the
+    // mainnet build (p-token) that supports WithdrawExcessLamports
+    if (!adminIsLocalWallet || !mainnetTokenProgram) this.skip();
+
+    const { poolAddress, poolState } = await setupPool();
+    const lpMint = poolState.lpMint;
+    // a mint is not a token account; it must not abort the rest of the batch
+    const vault2022 = poolState.token0Program.equals(TOKEN_PROGRAM_ID)
+      ? poolState.token1Vault
+      : poolState.token0Vault;
+    const sources = [lpMint, vault2022, poolAddress];
+
+    for (const source of sources) {
+      await donateLamports(source, LAMPORTS_PER_SOL / 10);
+    }
+    const lpMintBefore = await getMint(
+      anchor.getProvider().connection,
+      lpMint,
+      "processed",
+      TOKEN_PROGRAM_ID
+    );
+
+    await collectExcessLamports(program, owner, sources, confirmOptions);
+
+    for (const source of sources) {
+      assert.equal(
+        await anchor.getProvider().connection.getBalance(source),
+        await getRentMinimumBalance(source),
+        `${source.toBase58()} still holds excess lamports`
+      );
+    }
+    // collecting lamports must leave the mint itself untouched: same supply and
+    // the authority pda is still the mint authority, so lp mint/burn keeps working
+    const lpMintAfter = await getMint(
+      anchor.getProvider().connection,
+      lpMint,
+      "processed",
+      TOKEN_PROGRAM_ID
+    );
+    const [authority] = await getAuthAddress(program.programId);
+    assert.equal(lpMintAfter.mintAuthority.toBase58(), authority.toBase58());
+    assert.equal(
+      lpMintAfter.supply.toString(),
+      lpMintBefore.supply.toString()
     );
   });
 
