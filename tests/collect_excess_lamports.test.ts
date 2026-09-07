@@ -1,5 +1,5 @@
-import * as anchor from "@coral-xyz/anchor";
-import { Program, BN } from "@coral-xyz/anchor";
+import * as anchor from "@anchor-lang/core";
+import { Program, BN } from "@anchor-lang/core";
 import { RaydiumCpSwap } from "../target/types/raydium_cp_swap";
 
 import {
@@ -53,7 +53,18 @@ describe("collect excess lamports test", () => {
     );
   });
 
+  // creating a pool costs ~8 confirmed transactions, so the whole file shares
+  // one: every case donates its own lamports and collects them back, which
+  // leaves the pool at its rent-exempt minimum for the next case
+  let sharedPool: Awaited<ReturnType<typeof createPool>>;
   async function setupPool() {
+    if (sharedPool === undefined) {
+      sharedPool = await createPool();
+    }
+    return sharedPool;
+  }
+
+  async function createPool() {
     const { configAddress, token0, token0Program, token1, token1Program } =
       await setupInitializeTest(
         program,
@@ -240,10 +251,7 @@ describe("collect excess lamports test", () => {
     );
     const [authority] = await getAuthAddress(program.programId);
     assert.equal(lpMintAfter.mintAuthority.toBase58(), authority.toBase58());
-    assert.equal(
-      lpMintAfter.supply.toString(),
-      lpMintBefore.supply.toString()
-    );
+    assert.equal(lpMintAfter.supply.toString(), lpMintBefore.supply.toString());
   });
 
   it("collect excess lamports from a native (WSOL) account, wrapped balance unchanged", async function () {
