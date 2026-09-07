@@ -25,9 +25,9 @@ declare_id!("DRaycpLY18LhpbydsBWbVJtxpNv9oXPgjRSfpF2bWpYb");
 declare_id!("CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C");
 
 pub mod admin {
-    use super::Pubkey;
     #[cfg(not(feature = "localnet"))]
     use super::pubkey;
+    use super::Pubkey;
     #[cfg(feature = "localnet")]
     pub const ID: Pubkey = Pubkey::from_str_const(env!(
         "CPSWAP_LOCALNET_ADMIN",
@@ -53,6 +53,22 @@ pub mod collect_lamports {
     pub const ID: Pubkey = pubkey!("DRaydJNq54dSDHUqYCE3G8YySgaXfZucbh7dTXw9fBMs");
     #[cfg(not(feature = "devnet"))]
     pub const ID: Pubkey = pubkey!("RayGkhY93thaTgCv98sx1pNLgBHhJDxWUeZXp4bjmnp");
+}
+
+pub mod fund_fee_owner {
+    use super::{pubkey, Pubkey};
+    #[cfg(feature = "devnet")]
+    pub const ID: Pubkey = pubkey!("DRay33UmULQCeawH3dVpJfN3uqLj6Qtq4ymSRx2pAgGK");
+    #[cfg(not(feature = "devnet"))]
+    pub const ID: Pubkey = pubkey!("FUNDduJTA7XcckKHKfAoEnnhuSud2JUCUZv6opWEjrBU");
+}
+
+pub mod protocol_fee_owner {
+    use super::{pubkey, Pubkey};
+    #[cfg(feature = "devnet")]
+    pub const ID: Pubkey = pubkey!("DRay33UmULQCeawH3dVpJfN3uqLj6Qtq4ymSRx2pAgGK");
+    #[cfg(not(feature = "devnet"))]
+    pub const ID: Pubkey = pubkey!("ProCXqRcXJjoUd1RNoo28bSizAA6EEqt9wURZYPDc5u");
 }
 
 pub const AUTH_SEED: &str = "vault_and_lp_mint_auth_seed";
