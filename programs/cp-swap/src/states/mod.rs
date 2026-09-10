@@ -15,3 +15,6 @@ pub use permission::*;
 
 pub mod support_mint_associated;
 pub use support_mint_associated::*;
+
+pub mod creator_fee_share;
+pub use creator_fee_share::*;

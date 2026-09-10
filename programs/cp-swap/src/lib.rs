@@ -71,6 +71,14 @@ pub mod protocol_fee_owner {
     pub const ID: Pubkey = pubkey!("ProCXqRcXJjoUd1RNoo28bSizAA6EEqt9wURZYPDc5u");
 }
 
+pub mod shared_creator_fee_owner {
+    use super::{pubkey, Pubkey};
+    #[cfg(feature = "devnet")]
+    pub const ID: Pubkey = pubkey!("DRay2aRSqmGVMkcvsQNU4iskM1ztX31EP7pyrtrntqBQ");
+    #[cfg(not(feature = "devnet"))]
+    pub const ID: Pubkey = pubkey!("RayRrPVNAg3hTPa1yfZiR49FqCpkmiLaP4yWsVBnoBZ");
+}
+
 pub const AUTH_SEED: &str = "vault_and_lp_mint_auth_seed";
 
 #[program]
@@ -121,7 +129,10 @@ pub mod raydium_cp_swap {
     /// * `fund_fee_rate`- The new fund fee rate of amm config, be set when `param` is 2
     /// * `new_owner`- The config's new owner, be set when `param` is 3
     /// * `new_fund_owner`- The config's new fund owner, be set when `param` is 4
-    /// * `param`- The value can be 0 | 1 | 2 | 3 | 4, otherwise will report a error
+    /// * `creator_fee_rate`- The new creator fee rate of amm config, be set when `param` is 7
+    /// * `creator_fee_share_rate`- The new share of the creator fee retained by the
+    ///   protocol, be set when `param` is 8
+    /// * `param`- The value can be 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8, otherwise will report a error
     ///
     pub fn update_amm_config(ctx: Context<UpdateAmmConfig>, param: u8, value: u64) -> Result<()> {
         instructions::update_amm_config(ctx, param, value)
@@ -211,6 +222,53 @@ pub mod raydium_cp_swap {
     ///
     pub fn close_permission_pda(ctx: Context<ClosePermissionPda>) -> Result<()> {
         instructions::close_permission_pda(ctx)
+    }
+
+    /// Create a custom creator fee share account for a (creator, amm_config) pair.
+    /// While it exists it overrides `AmmConfig::creator_fee_share_rate` when the
+    /// creator fee of a pool created by `creator` on `amm_config` is collected.
+    /// Must be called by the admin or the creator fee share owner.
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx`- The context of accounts
+    /// * `share_rate` - The share of the creator fee retained by the protocol,
+    ///   denominated in hundredths of a bip (10^-6)
+    ///
+    pub fn create_creator_fee_share(
+        ctx: Context<CreateCreatorFeeShare>,
+        share_rate: u64,
+    ) -> Result<()> {
+        instructions::create_creator_fee_share(ctx, share_rate)
+    }
+
+    /// Close a custom creator fee share account, the creator fee split falls back to the
+    /// rate configured on the amm config afterwards.
+    /// Must be called by the admin or the creator fee share owner.
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx`- The context of accounts
+    ///
+    pub fn close_creator_fee_share(ctx: Context<CloseCreatorFeeShare>) -> Result<()> {
+        instructions::close_creator_fee_share(ctx)
+    }
+
+    /// Collect the share of the creator fee retained by the protocol.
+    /// Must be called by the admin or the shared creator fee owner.
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx` - The context of accounts
+    /// * `amount_0_requested` - The maximum amount of token_0 to send, can be 0 to collect fees in only token_1
+    /// * `amount_1_requested` - The maximum amount of token_1 to send, can be 0 to collect fees in only token_0
+    ///
+    pub fn collect_shared_creator_fee(
+        ctx: Context<CollectSharedCreatorFee>,
+        amount_0_requested: u64,
+        amount_1_requested: u64,
+    ) -> Result<()> {
+        instructions::collect_shared_creator_fee(ctx, amount_0_requested, amount_1_requested)
     }
 
     /// Creates a pool for the given token pair and the initial price

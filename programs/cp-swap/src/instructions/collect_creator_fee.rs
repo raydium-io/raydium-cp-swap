@@ -29,6 +29,19 @@ pub struct CollectCreatorFee<'info> {
     #[account(address = pool_state.load()?.amm_config)]
     pub amm_config: Account<'info, AmmConfig>,
 
+    /// CHECK: stores the custom share of the creator fee retained by the protocol.
+    /// Must always be passed but is not required to exist, in which case the rate
+    /// configured on `amm_config` applies.
+    #[account(
+        seeds = [
+            CREATOR_FEE_SHARE_SEED.as_bytes(),
+            creator.key().as_ref(),
+            amm_config.key().as_ref(),
+        ],
+        bump,
+    )]
+    pub creator_fee_share: UncheckedAccount<'info>,
+
     /// The address that holds pool tokens for token_0
     #[account(
         mut,
@@ -86,12 +99,17 @@ pub struct CollectCreatorFee<'info> {
 }
 
 pub fn collect_creator_fee(ctx: Context<CollectCreatorFee>) -> Result<()> {
+    let share_rate = resolve_creator_fee_share_rate(
+        &ctx.accounts.creator_fee_share,
+        &ctx.accounts.amm_config,
+    )?;
+
     let mut pool_state = ctx.accounts.pool_state.load_mut()?;
-    let creator_fees_token_0 = pool_state.creator_fees_token_0;
-    let creator_fees_token_1 = pool_state.creator_fees_token_1;
-    if creator_fees_token_0 == 0 && creator_fees_token_1 == 0 {
+    if pool_state.creator_fees_token_0 == 0 && pool_state.creator_fees_token_1 == 0 {
         return err!(ErrorCode::NoFeeCollect);
     }
+    let (creator_amount_0, creator_amount_1) = pool_state.settle_creator_fee(share_rate)?;
+    pool_state.recent_epoch = Clock::get()?.epoch;
 
     let signer_seeds: &[&[u8]] = &[crate::AUTH_SEED.as_bytes(), &[ctx.bumps.authority]];
 
@@ -101,7 +119,7 @@ pub fn collect_creator_fee(ctx: Context<CollectCreatorFee>) -> Result<()> {
         ctx.accounts.creator_token_0.to_account_info(),
         ctx.accounts.vault_0_mint.to_account_info(),
         ctx.accounts.token_0_program.to_account_info(),
-        creator_fees_token_0,
+        creator_amount_0,
         ctx.accounts.vault_0_mint.decimals,
         &[signer_seeds],
     )?;
@@ -112,14 +130,10 @@ pub fn collect_creator_fee(ctx: Context<CollectCreatorFee>) -> Result<()> {
         ctx.accounts.creator_token_1.to_account_info(),
         ctx.accounts.vault_1_mint.to_account_info(),
         ctx.accounts.token_1_program.to_account_info(),
-        creator_fees_token_1,
+        creator_amount_1,
         ctx.accounts.vault_1_mint.decimals,
         &[signer_seeds],
     )?;
-
-    pool_state.creator_fees_token_0 = 0;
-    pool_state.creator_fees_token_1 = 0;
-    pool_state.recent_epoch = Clock::get()?.epoch;
 
     Ok(())
 }

@@ -25,6 +25,8 @@ import {
   getPoolVaultAddress,
   createTokenMintAndAssociatedTokenAccount,
   getOrcleAccountAddress,
+  getPermissionAddress,
+  getCreatorFeeShareAddress,
 } from "./index";
 
 import { ASSOCIATED_PROGRAM_ID } from "@anchor-lang/core/dist/cjs/utils/token";
@@ -522,15 +524,21 @@ export async function swap_base_input(
   outputTokenProgram: PublicKey,
   amount_in: BN,
   minimum_amount_out: BN,
-  confirmOptions?: ConfirmOptions
+  confirmOptions?: ConfirmOptions,
+  // the pool pda is derived from the mints in token_0/token_1 order, so swapping the
+  // pool's token_1 in needs the address passed explicitly
+  poolAddress?: PublicKey
 ) {
   const [auth] = await getAuthAddress(program.programId);
-  const [poolAddress] = await getPoolAddress(
+  const [poolPdaAddress] = await getPoolAddress(
     configAddress,
     inputToken,
     outputToken,
     program.programId
   );
+  if (poolAddress == undefined) {
+    poolAddress = poolPdaAddress;
+  }
 
   const [inputVault] = await getPoolVaultAddress(
     poolAddress,
@@ -682,4 +690,392 @@ export async function collectExcessLamports(
     .rpc(confirmOptions);
 
   return tx;
+}
+
+export async function createPermissionPda(
+  program: Program<RaydiumCpSwap>,
+  connection: Connection,
+  owner: Signer,
+  permissionAuthority: PublicKey,
+  confirmOptions?: ConfirmOptions
+): Promise<PublicKey> {
+  const [permission] = await getPermissionAddress(
+    permissionAuthority,
+    program.programId
+  );
+  if (await accountExist(connection, permission)) {
+    return permission;
+  }
+  await program.methods
+    .createPermissionPda()
+    .accountsPartial({
+      owner: owner.publicKey,
+      permissionAuthority,
+      permission,
+      systemProgram: SystemProgram.programId,
+    })
+    .signers([owner])
+    .rpc(confirmOptions);
+  return permission;
+}
+
+/// Pools created through `initialize_with_permission` are the ones that accrue a creator
+/// fee, so the creator fee split can only be exercised through this entrypoint.
+export async function initializeWithPermission(
+  program: Program<RaydiumCpSwap>,
+  payer: Signer,
+  creator: PublicKey,
+  configAddress: PublicKey,
+  token0: PublicKey,
+  token0Program: PublicKey,
+  token1: PublicKey,
+  token1Program: PublicKey,
+  creatorFeeOn: { bothToken: {} } | { onlyToken0: {} } | { onlyToken1: {} } = {
+    bothToken: {},
+  },
+  confirmOptions?: ConfirmOptions,
+  initAmount: { initAmount0: BN; initAmount1: BN } = {
+    initAmount0: new BN(10000000000),
+    initAmount1: new BN(20000000000),
+  },
+  createPoolFee = new PublicKey("DNXgeM9EiiaAbaWvwjHj9fQQLAX5ZsfHyvmYUNRAdNC8")
+) {
+  const [auth] = await getAuthAddress(program.programId);
+  const [poolAddress] = await getPoolAddress(
+    configAddress,
+    token0,
+    token1,
+    program.programId
+  );
+  const [lpMintAddress] = await getPoolLpMintAddress(
+    poolAddress,
+    program.programId
+  );
+  const [vault0] = await getPoolVaultAddress(
+    poolAddress,
+    token0,
+    program.programId
+  );
+  const [vault1] = await getPoolVaultAddress(
+    poolAddress,
+    token1,
+    program.programId
+  );
+  const [observationAddress] = await getOrcleAccountAddress(
+    poolAddress,
+    program.programId
+  );
+  const [permission] = await getPermissionAddress(
+    payer.publicKey,
+    program.programId
+  );
+  const [payerLpToken] = await PublicKey.findProgramAddress(
+    [
+      payer.publicKey.toBuffer(),
+      TOKEN_PROGRAM_ID.toBuffer(),
+      lpMintAddress.toBuffer(),
+    ],
+    ASSOCIATED_PROGRAM_ID
+  );
+  const payerToken0 = getAssociatedTokenAddressSync(
+    token0,
+    payer.publicKey,
+    false,
+    token0Program
+  );
+  const payerToken1 = getAssociatedTokenAddressSync(
+    token1,
+    payer.publicKey,
+    false,
+    token1Program
+  );
+
+  await program.methods
+    .initializeWithPermission(
+      initAmount.initAmount0,
+      initAmount.initAmount1,
+      new BN(0),
+      creatorFeeOn as any
+    )
+    .accountsPartial({
+      payer: payer.publicKey,
+      creator,
+      ammConfig: configAddress,
+      authority: auth,
+      poolState: poolAddress,
+      token0Mint: token0,
+      token1Mint: token1,
+      lpMint: lpMintAddress,
+      payerToken0,
+      payerToken1,
+      payerLpToken,
+      token0Vault: vault0,
+      token1Vault: vault1,
+      createPoolFee,
+      observationState: observationAddress,
+      permission,
+      tokenProgram: TOKEN_PROGRAM_ID,
+      token0Program: token0Program,
+      token1Program: token1Program,
+      associatedTokenProgram: ASSOCIATED_PROGRAM_ID,
+      systemProgram: SystemProgram.programId,
+    })
+    .preInstructions([
+      ComputeBudgetProgram.setComputeUnitLimit({ units: 400000 }),
+    ])
+    .signers([payer])
+    .rpc(confirmOptions);
+
+  const poolState = await program.account.poolState.fetch(poolAddress);
+  return { poolAddress, poolState };
+}
+
+export async function createCreatorFeeShare(
+  program: Program<RaydiumCpSwap>,
+  owner: Signer,
+  creator: PublicKey,
+  configAddress: PublicKey,
+  shareRate: BN,
+  confirmOptions?: ConfirmOptions
+): Promise<PublicKey> {
+  const [creatorFeeShare] = await getCreatorFeeShareAddress(
+    creator,
+    configAddress,
+    program.programId
+  );
+  await program.methods
+    .createCreatorFeeShare(shareRate)
+    .accountsPartial({
+      owner: owner.publicKey,
+      creator,
+      ammConfig: configAddress,
+      creatorFeeShare,
+      systemProgram: SystemProgram.programId,
+    })
+    .signers([owner])
+    .rpc(confirmOptions);
+  return creatorFeeShare;
+}
+
+export async function closeCreatorFeeShare(
+  program: Program<RaydiumCpSwap>,
+  owner: Signer,
+  creator: PublicKey,
+  configAddress: PublicKey,
+  confirmOptions?: ConfirmOptions
+) {
+  const [creatorFeeShare] = await getCreatorFeeShareAddress(
+    creator,
+    configAddress,
+    program.programId
+  );
+  return program.methods
+    .closeCreatorFeeShare()
+    .accountsPartial({
+      owner: owner.publicKey,
+      creator,
+      ammConfig: configAddress,
+      creatorFeeShare,
+      systemProgram: SystemProgram.programId,
+    })
+    .signers([owner])
+    .rpc(confirmOptions);
+}
+
+export async function collectCreatorFee(
+  program: Program<RaydiumCpSwap>,
+  creator: Signer,
+  poolAddress: PublicKey,
+  configAddress: PublicKey,
+  token0: PublicKey,
+  token0Program: PublicKey,
+  token1: PublicKey,
+  token1Program: PublicKey,
+  confirmOptions?: ConfirmOptions
+) {
+  const [auth] = await getAuthAddress(program.programId);
+  const [vault0] = await getPoolVaultAddress(
+    poolAddress,
+    token0,
+    program.programId
+  );
+  const [vault1] = await getPoolVaultAddress(
+    poolAddress,
+    token1,
+    program.programId
+  );
+  const [creatorFeeShare] = await getCreatorFeeShareAddress(
+    creator.publicKey,
+    configAddress,
+    program.programId
+  );
+
+  return program.methods
+    .collectCreatorFee()
+    .accountsPartial({
+      creator: creator.publicKey,
+      authority: auth,
+      poolState: poolAddress,
+      ammConfig: configAddress,
+      creatorFeeShare,
+      token0Vault: vault0,
+      token1Vault: vault1,
+      vault0Mint: token0,
+      vault1Mint: token1,
+      creatorToken0: getAssociatedTokenAddressSync(
+        token0,
+        creator.publicKey,
+        false,
+        token0Program
+      ),
+      creatorToken1: getAssociatedTokenAddressSync(
+        token1,
+        creator.publicKey,
+        false,
+        token1Program
+      ),
+      token0Program,
+      token1Program,
+      associatedTokenProgram: ASSOCIATED_PROGRAM_ID,
+      systemProgram: SystemProgram.programId,
+    })
+    .signers([creator])
+    .rpc(confirmOptions);
+}
+
+export async function collectCreatorFeePermissionless(
+  program: Program<RaydiumCpSwap>,
+  payer: Signer,
+  creator: PublicKey,
+  poolAddress: PublicKey,
+  configAddress: PublicKey,
+  token0: PublicKey,
+  token0Program: PublicKey,
+  token1: PublicKey,
+  token1Program: PublicKey,
+  confirmOptions?: ConfirmOptions
+) {
+  const [auth] = await getAuthAddress(program.programId);
+  const [vault0] = await getPoolVaultAddress(
+    poolAddress,
+    token0,
+    program.programId
+  );
+  const [vault1] = await getPoolVaultAddress(
+    poolAddress,
+    token1,
+    program.programId
+  );
+  const [creatorFeeShare] = await getCreatorFeeShareAddress(
+    creator,
+    configAddress,
+    program.programId
+  );
+
+  return program.methods
+    .collectCreatorFeePermissionless()
+    .accountsPartial({
+      payer: payer.publicKey,
+      creator,
+      authority: auth,
+      poolState: poolAddress,
+      ammConfig: configAddress,
+      creatorFeeShare,
+      token0Vault: vault0,
+      token1Vault: vault1,
+      vault0Mint: token0,
+      vault1Mint: token1,
+      creatorToken0: getAssociatedTokenAddressSync(
+        token0,
+        creator,
+        false,
+        token0Program
+      ),
+      creatorToken1: getAssociatedTokenAddressSync(
+        token1,
+        creator,
+        false,
+        token1Program
+      ),
+      token0Program,
+      token1Program,
+      associatedTokenProgram: ASSOCIATED_PROGRAM_ID,
+      systemProgram: SystemProgram.programId,
+    })
+    .signers([payer])
+    .rpc(confirmOptions);
+}
+
+export async function collectSharedCreatorFee(
+  program: Program<RaydiumCpSwap>,
+  owner: Signer,
+  poolAddress: PublicKey,
+  token0: PublicKey,
+  token0Program: PublicKey,
+  token1: PublicKey,
+  token1Program: PublicKey,
+  amount0Requested: BN,
+  amount1Requested: BN,
+  confirmOptions?: ConfirmOptions,
+  // the authority of the recipient token accounts, defaults to the signer; pass an
+  // existing one to isolate the owner check when the signer has no token accounts
+  recipientAuthority: PublicKey = owner.publicKey
+) {
+  const [auth] = await getAuthAddress(program.programId);
+  const [vault0] = await getPoolVaultAddress(
+    poolAddress,
+    token0,
+    program.programId
+  );
+  const [vault1] = await getPoolVaultAddress(
+    poolAddress,
+    token1,
+    program.programId
+  );
+
+  return program.methods
+    .collectSharedCreatorFee(amount0Requested, amount1Requested)
+    .accountsPartial({
+      owner: owner.publicKey,
+      authority: auth,
+      poolState: poolAddress,
+      token0Vault: vault0,
+      token1Vault: vault1,
+      vault0Mint: token0,
+      vault1Mint: token1,
+      recipientToken0Account: getAssociatedTokenAddressSync(
+        token0,
+        recipientAuthority,
+        false,
+        token0Program
+      ),
+      recipientToken1Account: getAssociatedTokenAddressSync(
+        token1,
+        recipientAuthority,
+        false,
+        token1Program
+      ),
+      tokenProgram: TOKEN_PROGRAM_ID,
+      tokenProgram2022: TOKEN_2022_PROGRAM_ID,
+    })
+    .signers([owner])
+    .rpc(confirmOptions);
+}
+
+export async function updateAmmConfig(
+  program: Program<RaydiumCpSwap>,
+  owner: Signer,
+  configAddress: PublicKey,
+  param: number,
+  value: BN,
+  confirmOptions?: ConfirmOptions
+) {
+  return program.methods
+    .updateAmmConfig(param, value)
+    .accountsPartial({
+      owner: owner.publicKey,
+      ammConfig: configAddress,
+    })
+    .signers([owner])
+    .rpc(confirmOptions);
 }
