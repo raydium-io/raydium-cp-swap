@@ -1,5 +1,6 @@
 #![allow(dead_code)]
-use anchor_client::{Client, Cluster};
+// CommitmentConfig moved out of solana_sdk in Solana 3.x; anchor_client re-exports it
+use anchor_client::{Client, Cluster, CommitmentConfig};
 use anchor_spl::{associated_token::spl_associated_token_account, token::spl_token};
 use anyhow::{format_err, Result};
 use arrayref::array_ref;
@@ -7,7 +8,6 @@ use clap::Parser;
 use configparser::ini::Ini;
 use solana_client::{rpc_client::RpcClient, rpc_config::RpcTransactionConfig};
 use solana_sdk::{
-    commitment_config::CommitmentConfig,
     pubkey::Pubkey,
     signature::{Keypair, Signature, Signer},
     transaction::Transaction,
@@ -184,12 +184,12 @@ fn main() -> Result<()> {
                 mint1,
                 token_0_program,
                 token_1_program,
-                spl_associated_token_account::get_associated_token_address_with_program_id(
+                spl_associated_token_account::address::get_associated_token_address_with_program_id(
                     &payer.pubkey(),
                     &mint0,
                     &token_0_program,
                 ),
-                spl_associated_token_account::get_associated_token_address_with_program_id(
+                spl_associated_token_account::address::get_associated_token_address_with_program_id(
                     &payer.pubkey(),
                     &mint1,
                     &token_1_program,
@@ -298,7 +298,7 @@ fn main() -> Result<()> {
                 pool_state.token_1_vault,
                 user_token_0,
                 user_token_1,
-                spl_associated_token_account::get_associated_token_address(
+                spl_associated_token_account::address::get_associated_token_address(
                     &payer.pubkey(),
                     &pool_state.lp_mint,
                 ),
@@ -410,11 +410,11 @@ fn main() -> Result<()> {
                 pool_state.lp_mint,
                 pool_state.token_0_vault,
                 pool_state.token_1_vault,
-                spl_associated_token_account::get_associated_token_address(
+                spl_associated_token_account::address::get_associated_token_address(
                     &payer.pubkey(),
                     &pool_state.token_0_mint,
                 ),
-                spl_associated_token_account::get_associated_token_address(
+                spl_associated_token_account::address::get_associated_token_address(
                     &payer.pubkey(),
                     &pool_state.token_1_mint,
                 ),
@@ -498,7 +498,7 @@ fn main() -> Result<()> {
                     total_token_0_amount,
                     total_token_1_amount,
                     user_input_token,
-                    spl_associated_token_account::get_associated_token_address(
+                    spl_associated_token_account::address::get_associated_token_address(
                         &payer.pubkey(),
                         &pool_state.token_1_mint,
                     ),
@@ -516,7 +516,7 @@ fn main() -> Result<()> {
                     total_token_1_amount,
                     total_token_0_amount,
                     user_input_token,
-                    spl_associated_token_account::get_associated_token_address(
+                    spl_associated_token_account::address::get_associated_token_address(
                         &payer.pubkey(),
                         &pool_state.token_0_mint,
                     ),
@@ -656,7 +656,7 @@ fn main() -> Result<()> {
                     total_token_0_amount,
                     total_token_1_amount,
                     user_input_token,
-                    spl_associated_token_account::get_associated_token_address(
+                    spl_associated_token_account::address::get_associated_token_address(
                         &payer.pubkey(),
                         &pool_state.token_1_mint,
                     ),
@@ -674,7 +674,7 @@ fn main() -> Result<()> {
                     total_token_1_amount,
                     total_token_0_amount,
                     user_input_token,
-                    spl_associated_token_account::get_associated_token_address(
+                    spl_associated_token_account::address::get_associated_token_address(
                         &payer.pubkey(),
                         &pool_state.token_0_mint,
                     ),

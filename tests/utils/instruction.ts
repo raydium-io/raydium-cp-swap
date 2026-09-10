@@ -1,4 +1,4 @@
-import { Program, BN } from "@coral-xyz/anchor";
+import { Program, BN } from "@anchor-lang/core";
 import { RaydiumCpSwap } from "../../target/types/raydium_cp_swap";
 import {
   Connection,
@@ -27,7 +27,7 @@ import {
   getOrcleAccountAddress,
 } from "./index";
 
-import { ASSOCIATED_PROGRAM_ID } from "@coral-xyz/anchor/dist/cjs/utils/token";
+import { ASSOCIATED_PROGRAM_ID } from "@anchor-lang/core/dist/cjs/utils/token";
 
 export async function setupInitializeTest(
   program: Program<RaydiumCpSwap>,
@@ -39,6 +39,7 @@ export async function setupInitializeTest(
     protocolFeeRate: BN;
     fundFeeRate: BN;
     create_fee: BN;
+    creatorFeeRate?: BN;
   },
   transferFeeConfig: { transferFeeBasisPoints: number; MaxFee: number } = {
     transferFeeBasisPoints: 0,
@@ -62,6 +63,7 @@ export async function setupInitializeTest(
     config.protocolFeeRate,
     config.fundFeeRate,
     config.create_fee,
+    config.creatorFeeRate ?? new BN(0),
     confirmOptions
   );
   return {
@@ -83,6 +85,7 @@ export async function setupDepositTest(
     protocolFeeRate: BN;
     fundFeeRate: BN;
     create_fee: BN;
+    creatorFeeRate?: BN;
   },
   transferFeeConfig: { transferFeeBasisPoints: number; MaxFee: number } = {
     transferFeeBasisPoints: 0,
@@ -107,6 +110,7 @@ export async function setupDepositTest(
     config.protocolFeeRate,
     config.fundFeeRate,
     config.create_fee,
+    config.creatorFeeRate ?? new BN(0),
     confirmOptions
   );
 
@@ -162,6 +166,7 @@ export async function setupSwapTest(
     protocolFeeRate: BN;
     fundFeeRate: BN;
     create_fee: BN;
+    creatorFeeRate?: BN;
   },
   transferFeeConfig: { transferFeeBasisPoints: number; MaxFee: number } = {
     transferFeeBasisPoints: 0,
@@ -178,6 +183,7 @@ export async function setupSwapTest(
     config.protocolFeeRate,
     config.fundFeeRate,
     config.create_fee,
+    config.creatorFeeRate ?? new BN(0),
     confirmOptions
   );
 
@@ -225,6 +231,7 @@ export async function createAmmConfig(
   protocolFeeRate: BN,
   fundFeeRate: BN,
   create_fee: BN,
+  creator_fee_rate: BN,
   confirmOptions?: ConfirmOptions
 ): Promise<PublicKey> {
   const [address, _] = await getAmmConfigAddress(
@@ -241,9 +248,10 @@ export async function createAmmConfig(
       tradeFeeRate,
       protocolFeeRate,
       fundFeeRate,
-      create_fee
+      create_fee,
+      creator_fee_rate
     )
-    .accounts({
+    .accountsPartial({
       owner: owner.publicKey,
       ammConfig: address,
       systemProgram: SystemProgram.programId,
@@ -319,7 +327,7 @@ export async function initialize(
   );
   await program.methods
     .initialize(initAmount.initAmount0, initAmount.initAmount1, new BN(0))
-    .accounts({
+    .accountsPartial({
       creator: creator.publicKey,
       ammConfig: configAddress,
       authority: auth,
@@ -404,7 +412,7 @@ export async function deposit(
 
   const tx = await program.methods
     .deposit(lp_token_amount, maximum_token_0_amount, maximum_token_1_amount)
-    .accounts({
+    .accountsPartial({
       owner: owner.publicKey,
       authority: auth,
       poolState: poolAddress,
@@ -482,7 +490,7 @@ export async function withdraw(
 
   const tx = await program.methods
     .withdraw(lp_token_amount, minimum_token_0_amount, minimum_token_1_amount)
-    .accounts({
+    .accountsPartial({
       owner: owner.publicKey,
       authority: auth,
       poolState: poolAddress,
@@ -554,7 +562,7 @@ export async function swap_base_input(
 
   const tx = await program.methods
     .swapBaseInput(amount_in, minimum_amount_out)
-    .accounts({
+    .accountsPartial({
       payer: owner.publicKey,
       authority: auth,
       ammConfig: configAddress,
@@ -627,7 +635,7 @@ export async function swap_base_output(
 
   const tx = await program.methods
     .swapBaseOutput(max_amount_in, amount_out_less_fee)
-    .accounts({
+    .accountsPartial({
       payer: owner.publicKey,
       authority: auth,
       ammConfig: configAddress,
@@ -642,6 +650,35 @@ export async function swap_base_output(
       outputTokenMint: outputToken,
       observationState: observationAddress,
     })
+    .rpc(confirmOptions);
+
+  return tx;
+}
+
+export async function collectExcessLamports(
+  program: Program<RaydiumCpSwap>,
+  wallet: Signer,
+  sourceLamportsAccounts: PublicKey[],
+  confirmOptions?: ConfirmOptions
+) {
+  const [auth] = await getAuthAddress(program.programId);
+
+  const tx = await program.methods
+    .collectExcessLamports()
+    .accountsPartial({
+      collectLamportsWallet: wallet.publicKey,
+      authority: auth,
+      tokenProgram: TOKEN_PROGRAM_ID,
+      tokenProgram2022: TOKEN_2022_PROGRAM_ID,
+    })
+    .remainingAccounts(
+      sourceLamportsAccounts.map((pubkey) => ({
+        pubkey,
+        isSigner: false,
+        isWritable: true,
+      }))
+    )
+    .signers([wallet])
     .rpc(confirmOptions);
 
   return tx;

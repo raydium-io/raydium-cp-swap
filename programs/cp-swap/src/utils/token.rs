@@ -13,14 +13,6 @@ use anchor_spl::{
     token_2022::{self},
     token_interface::{initialize_account3, InitializeAccount3, Mint},
 };
-use std::collections::HashSet;
-
-const MINT_WHITELIST: [&'static str; 4] = [
-    "HVbpJAQGNpkgBaYBZQBR1t7yFdvaYVp2vCQQfKKEN4tM",
-    "Crn4x1Y2HUKko7ox2EZMT6N2t2ZyH7eKtwkBGVnhEq1g",
-    "FrBfWJ4qE5sCzKm3k3JaAtqZcXUh4LvJygDeketsrsH4",
-    "2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo",
-];
 
 pub fn transfer_from_user_to_pool_vault<'a>(
     authority: AccountInfo<'a>,
@@ -36,7 +28,7 @@ pub fn transfer_from_user_to_pool_vault<'a>(
     }
     token_2022::transfer_checked(
         CpiContext::new(
-            token_program.to_account_info(),
+            *token_program.key,
             token_2022::TransferChecked {
                 from,
                 to: to_vault,
@@ -64,7 +56,7 @@ pub fn transfer_from_pool_vault_to_user<'a>(
     }
     token_2022::transfer_checked(
         CpiContext::new_with_signer(
-            token_program.to_account_info(),
+            *token_program.key,
             token_2022::TransferChecked {
                 from: from_vault,
                 to,
@@ -89,7 +81,7 @@ pub fn token_mint_to<'a>(
 ) -> Result<()> {
     token_2022::mint_to(
         CpiContext::new_with_signer(
-            token_program,
+            *token_program.key,
             token_2022::MintTo {
                 to: destination,
                 authority,
@@ -111,7 +103,7 @@ pub fn token_burn<'a>(
 ) -> Result<()> {
     token_2022::burn(
         CpiContext::new_with_signer(
-            token_program.to_account_info(),
+            *token_program.key,
             token_2022::Burn {
                 from,
                 authority,
@@ -121,6 +113,141 @@ pub fn token_burn<'a>(
         ),
         amount,
     )
+}
+
+pub fn withdraw_excess_lamports<'a>(
+    token_program: AccountInfo<'a>,
+    source: AccountInfo<'a>,
+    destination: AccountInfo<'a>,
+    authority: AccountInfo<'a>,
+    amm_seed: &[u8],
+    nonce: u8,
+) -> Result<()> {
+    let ix = instruction::Instruction {
+        program_id: *token_program.key,
+        accounts: vec![
+            AccountMeta::new(*source.key, false),
+            AccountMeta::new(*destination.key, false),
+            AccountMeta::new_readonly(*authority.key, true),
+        ],
+        data: vec![38], // TokenInstruction::WithdrawExcessLamports = 38
+    };
+    anchor_lang::solana_program::program::invoke_signed(
+        &ix,
+        &[source, destination, authority, token_program],
+        &[&[amm_seed, &[nonce]]],
+    )
+    .map_err(Into::into)
+}
+
+pub fn unwrap_lamports<'a>(
+    token_program: AccountInfo<'a>,
+    source: AccountInfo<'a>,
+    destination: AccountInfo<'a>,
+    authority: AccountInfo<'a>,
+    amm_seed: &[u8],
+    nonce: u8,
+    amount: Option<u64>,
+) -> Result<()> {
+    // TokenInstruction::UnwrapLamports = 45, followed by a COption<u64>
+    let mut data = vec![45];
+    match amount {
+        Some(amount) => {
+            data.push(1); // COption::Some
+            data.extend_from_slice(&amount.to_le_bytes());
+        }
+        None => data.push(0), // COption::None
+    }
+    let ix = instruction::Instruction {
+        program_id: *token_program.key,
+        accounts: vec![
+            AccountMeta::new(*source.key, false),
+            AccountMeta::new(*destination.key, false),
+            AccountMeta::new_readonly(*authority.key, true),
+        ],
+        data,
+    };
+    anchor_lang::solana_program::program::invoke_signed(
+        &ix,
+        &[source, destination, authority, token_program],
+        &[&[amm_seed, &[nonce]]],
+    )
+    .map_err(Into::into)
+}
+
+/// Read (is_native, amount) from a token account, parsing extensions so it
+/// works for both legacy accounts and Token-2022 accounts that carry extensions.
+fn token_account_native_and_amount(account: &AccountInfo) -> Result<(bool, u64)> {
+    let data = account.try_borrow_data()?;
+    if let Ok(state) = StateWithExtensions::<spl_token_2022::state::Account>::unpack(&data) {
+        return Ok((state.base.is_native.is_some(), state.base.amount));
+    } else {
+        // process token mint account
+        return Ok((false, 0));
+    }
+}
+
+/// Collect the excess lamports sitting on a token account owned by `authority`.
+///
+/// A native (WSOL) account cannot use `WithdrawExcessLamports` (the token
+/// program rejects native accounts). Instead `SyncNative` folds the donated
+/// excess lamports into the wrapped `amount`, the delta is measured, and
+/// `UnwrapLamports` pulls exactly that delta back out — leaving the wrapped
+/// balance unchanged, which is asserted afterwards.
+pub fn withdraw_excess_lamports_from_token<'a>(
+    token_program: AccountInfo<'a>,
+    source: AccountInfo<'a>,
+    destination: AccountInfo<'a>,
+    authority: AccountInfo<'a>,
+    amm_seed: &[u8],
+    nonce: u8,
+) -> Result<()> {
+    let (is_native, amount_before_sync) = token_account_native_and_amount(&source)?;
+
+    if !is_native {
+        return withdraw_excess_lamports(
+            token_program,
+            source,
+            destination,
+            authority,
+            amm_seed,
+            nonce,
+        );
+    }
+
+    // SyncNative (ix 17) folds the donated excess lamports into the wrapped amount.
+    let sync_ix = spl_token_2022::instruction::sync_native(token_program.key, source.key)?;
+    anchor_lang::solana_program::program::invoke(
+        &sync_ix,
+        &[source.clone(), token_program.clone()],
+    )?;
+
+    let (_, amount_after_sync) = token_account_native_and_amount(&source)?;
+    let excess_lamports = amount_after_sync
+        .checked_sub(amount_before_sync)
+        .ok_or(ErrorCode::LamportsCalculateError)?;
+    if excess_lamports == 0 {
+        return Ok(());
+    }
+
+    unwrap_lamports(
+        token_program,
+        source.clone(),
+        destination,
+        authority,
+        amm_seed,
+        nonce,
+        Some(excess_lamports),
+    )?;
+
+    // The wrapped balance must be exactly what it was before sync + unwrap.
+    let (_, amount_after_unwrap) = token_account_native_and_amount(&source)?;
+    require_eq!(
+        amount_before_sync,
+        amount_after_unwrap,
+        ErrorCode::LamportsCalculateError
+    );
+    Ok(())
 }
 
 /// Calculate the fee for output amount
@@ -213,10 +340,6 @@ pub fn is_supported_mint(
     if *mint_info.owner == Token::id() {
         return Ok(true);
     }
-    let mint_whitelist: HashSet<&str> = MINT_WHITELIST.into_iter().collect();
-    if mint_whitelist.contains(mint_account.key().to_string().as_str()) {
-        return Ok(true);
-    }
     if mint_associated_is_initialized {
         return Ok(true);
     }
@@ -270,7 +393,7 @@ pub fn create_token_account<'a>(
         space,
     )?;
     initialize_account3(CpiContext::new(
-        token_program.to_account_info(),
+        *token_program.key,
         InitializeAccount3 {
             account: token_account.to_account_info(),
             mint: mint_account.to_account_info(),
@@ -296,7 +419,7 @@ pub fn create_or_allocate_account<'a>(
             from: payer,
             to: target_account.clone(),
         };
-        let cpi_context = CpiContext::new(system_program.clone(), cpi_accounts);
+        let cpi_context = CpiContext::new(*system_program.key, cpi_accounts);
         system_program::create_account(
             cpi_context.with_signer(&[siger_seed]),
             lamports,
@@ -313,13 +436,13 @@ pub fn create_or_allocate_account<'a>(
                 from: payer.to_account_info(),
                 to: target_account.clone(),
             };
-            let cpi_context = CpiContext::new(system_program.clone(), cpi_accounts);
+            let cpi_context = CpiContext::new(*system_program.key, cpi_accounts);
             system_program::transfer(cpi_context, required_lamports)?;
         }
         let cpi_accounts = system_program::Allocate {
             account_to_allocate: target_account.clone(),
         };
-        let cpi_context = CpiContext::new(system_program.clone(), cpi_accounts);
+        let cpi_context = CpiContext::new(*system_program.key, cpi_accounts);
         system_program::allocate(
             cpi_context.with_signer(&[siger_seed]),
             u64::try_from(space).unwrap(),
@@ -328,7 +451,7 @@ pub fn create_or_allocate_account<'a>(
         let cpi_accounts = system_program::Assign {
             account_to_assign: target_account.clone(),
         };
-        let cpi_context = CpiContext::new(system_program.clone(), cpi_accounts);
+        let cpi_context = CpiContext::new(*system_program.key, cpi_accounts);
         system_program::assign(cpi_context.with_signer(&[siger_seed]), program_id)?;
     }
     Ok(())

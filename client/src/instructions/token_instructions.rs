@@ -1,5 +1,6 @@
 use super::super::{read_keypair_file, ClientConfig};
 use anchor_client::{Client, Cluster};
+use anchor_lang::solana_program::system_instruction;
 use anchor_spl::{
     associated_token::spl_associated_token_account,
     token::spl_token,
@@ -17,7 +18,6 @@ use solana_sdk::{
     program_pack::Pack,
     pubkey::Pubkey,
     signature::{Keypair, Signer},
-    system_instruction,
 };
 // use spl_token_client::token::ExtensionInitializationParams;
 use std::{rc::Rc, str::FromStr};
@@ -90,7 +90,7 @@ pub fn create_account_rent_exmpt_instr(
             data_size as u64,
             &program.id(),
         ))
-        .instructions()?;
+        .instructions();
     Ok(instructions)
 }
 
@@ -115,7 +115,7 @@ pub fn create_ata_token_account_instr(
                 &token_program,
             ),
         )
-        .instructions()?;
+        .instructions();
     Ok(instructions)
 }
 
@@ -173,7 +173,7 @@ pub fn create_and_init_auxiliary_token(
             mint,
             owner,
         )?)
-        .instructions()?;
+        .instructions();
     Ok(instructions)
 }
 
@@ -198,7 +198,7 @@ pub fn close_token_account(
             &[],
         )?)
         .signer(owner)
-        .instructions()?;
+        .instructions();
     Ok(instructions)
 }
 
@@ -225,7 +225,7 @@ pub fn spl_token_transfer_instr(
             amount,
         )?)
         .signer(from_authority)
-        .instructions()?;
+        .instructions();
     Ok(instructions)
 }
 
@@ -257,7 +257,7 @@ pub fn spl_token_mint_to_instr(
             amount,
         )?)
         .signer(mint_authority)
-        .instructions()?;
+        .instructions();
     Ok(instructions)
 }
 
@@ -266,8 +266,10 @@ pub fn wrap_sol_instr(config: &ClientConfig, amount: u64) -> Result<Vec<Instruct
     let wallet_key = payer.pubkey();
     let url = Cluster::Custom(config.http_url.clone(), config.ws_url.clone());
     let wsol_mint = Pubkey::from_str("So11111111111111111111111111111111111111112")?;
-    let wsol_ata_account =
-        spl_associated_token_account::get_associated_token_address(&wallet_key, &wsol_mint);
+    let wsol_ata_account = spl_associated_token_account::address::get_associated_token_address(
+        &wallet_key,
+        &wsol_mint,
+    );
     // Client.
     let client = Client::new(url, Rc::new(payer));
     let program = client.program(spl_token::id())?;
@@ -291,6 +293,6 @@ pub fn wrap_sol_instr(config: &ClientConfig, amount: u64) -> Result<Vec<Instruct
             &program.id(),
             &wsol_ata_account,
         )?)
-        .instructions()?;
+        .instructions();
     Ok(instructions)
 }

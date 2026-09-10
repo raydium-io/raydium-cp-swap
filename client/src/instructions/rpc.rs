@@ -1,3 +1,4 @@
+use anchor_client::CommitmentConfig;
 use anyhow::{anyhow, Result};
 use solana_client::{
     rpc_client::RpcClient,
@@ -6,8 +7,8 @@ use solana_client::{
     rpc_response::{RpcResult, RpcSimulateTransactionResult},
 };
 use solana_sdk::{
-    account::Account, commitment_config::CommitmentConfig, program_pack::Pack as TokenPack,
-    pubkey::Pubkey, signature::Signature, transaction::Transaction,
+    account::Account, program_pack::Pack as TokenPack, pubkey::Pubkey, signature::Signature,
+    transaction::Transaction,
 };
 use std::convert::Into;
 

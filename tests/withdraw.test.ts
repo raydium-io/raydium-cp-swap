@@ -1,5 +1,5 @@
-import * as anchor from "@coral-xyz/anchor";
-import { Program, BN } from "@coral-xyz/anchor";
+import * as anchor from "@anchor-lang/core";
+import { Program, BN } from "@anchor-lang/core";
 import { RaydiumCpSwap } from "../target/types/raydium_cp_swap";
 import {
   deposit,

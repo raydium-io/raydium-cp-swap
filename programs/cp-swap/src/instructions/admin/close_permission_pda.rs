@@ -6,7 +6,7 @@ use anchor_lang::prelude::*;
 pub struct ClosePermissionPda<'info> {
     #[account(
         mut,
-        address = crate::admin::ID @ ErrorCode::InvalidOwner
+        constraint = (owner.key() == crate::admin::ID || owner.key() == crate::create_permission_pda_owner::ID) @ ErrorCode::InvalidOwner
     )]
     pub owner: Signer<'info>,
 

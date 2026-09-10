@@ -25,10 +25,17 @@ declare_id!("DRaycpLY18LhpbydsBWbVJtxpNv9oXPgjRSfpF2bWpYb");
 declare_id!("CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C");
 
 pub mod admin {
-    use super::{pubkey, Pubkey};
+    #[cfg(not(feature = "localnet"))]
+    use super::pubkey;
+    use super::Pubkey;
+    #[cfg(feature = "localnet")]
+    pub const ID: Pubkey = Pubkey::from_str_const(env!(
+        "CPSWAP_LOCALNET_ADMIN",
+        "the `localnet` feature needs CPSWAP_LOCALNET_ADMIN=<admin pubkey> at build time (run `yarn test:local-admin`)"
+    ));
     #[cfg(feature = "devnet")]
     pub const ID: Pubkey = pubkey!("DRayqG9RXYi8WHgWEmRQGrUWRWbhjYWYkCRJDd6JBBak");
-    #[cfg(not(feature = "devnet"))]
+    #[cfg(all(not(feature = "devnet"), not(feature = "localnet")))]
     pub const ID: Pubkey = pubkey!("GThUX1Atko4tqhN2NaiTazWSeFWMuiUvfFnyJyUghFMJ");
 }
 
@@ -38,6 +45,30 @@ pub mod create_pool_fee_reveiver {
     pub const ID: Pubkey = pubkey!("3oE58BKVt8KuYkGxx8zBojugnymWmBiyafWgMrnb6eYy");
     #[cfg(not(feature = "devnet"))]
     pub const ID: Pubkey = pubkey!("DNXgeM9EiiaAbaWvwjHj9fQQLAX5ZsfHyvmYUNRAdNC8");
+}
+
+pub mod collect_lamports {
+    use super::{pubkey, Pubkey};
+    #[cfg(feature = "devnet")]
+    pub const ID: Pubkey = pubkey!("DRaydJNq54dSDHUqYCE3G8YySgaXfZucbh7dTXw9fBMs");
+    #[cfg(not(feature = "devnet"))]
+    pub const ID: Pubkey = pubkey!("RayGkhY93thaTgCv98sx1pNLgBHhJDxWUeZXp4bjmnp");
+}
+
+pub mod fund_fee_owner {
+    use super::{pubkey, Pubkey};
+    #[cfg(feature = "devnet")]
+    pub const ID: Pubkey = pubkey!("DRay33UmULQCeawH3dVpJfN3uqLj6Qtq4ymSRx2pAgGK");
+    #[cfg(not(feature = "devnet"))]
+    pub const ID: Pubkey = pubkey!("FUNDduJTA7XcckKHKfAoEnnhuSud2JUCUZv6opWEjrBU");
+}
+
+pub mod protocol_fee_owner {
+    use super::{pubkey, Pubkey};
+    #[cfg(feature = "devnet")]
+    pub const ID: Pubkey = pubkey!("DRay33UmULQCeawH3dVpJfN3uqLj6Qtq4ymSRx2pAgGK");
+    #[cfg(not(feature = "devnet"))]
+    pub const ID: Pubkey = pubkey!("ProCXqRcXJjoUd1RNoo28bSizAA6EEqt9wURZYPDc5u");
 }
 
 pub const AUTH_SEED: &str = "vault_and_lp_mint_auth_seed";
@@ -308,5 +339,12 @@ pub mod raydium_cp_swap {
     /// Close support token22 mint account which can create pool and send rewards while ignoring unsupported extensions.
     pub fn close_support_mint_associated(ctx: Context<CloseSupportMintAssociated>) -> Result<()> {
         instructions::close_support_mint_associated(ctx)
+    }
+
+    /// Collect excess lamports, including accounts for SPL tokens owned by authority and Program PDA accounts.
+    pub fn collect_excess_lamports<'info>(
+        ctx: Context<'info, CollectExcessLamports<'info>>,
+    ) -> Result<()> {
+        instructions::collect_excess_lamports(ctx)
     }
 }
