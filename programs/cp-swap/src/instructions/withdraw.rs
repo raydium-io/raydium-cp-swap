@@ -30,7 +30,7 @@ pub struct Withdraw<'info> {
 
     /// Owner lp token account
     #[account(
-        mut, 
+        mut,
         token::authority = owner
     )]
     pub owner_lp_token: Box<InterfaceAccount<'info, TokenAccount>>,
