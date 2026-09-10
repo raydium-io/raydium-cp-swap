@@ -33,6 +33,3 @@ pub use create_creator_fee_share::*;
 
 pub mod close_creator_fee_share;
 pub use close_creator_fee_share::*;
-
-pub mod collect_shared_creator_fee;
-pub use collect_shared_creator_fee::*;

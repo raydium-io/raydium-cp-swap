@@ -99,10 +99,8 @@ pub struct CollectCreatorFee<'info> {
 }
 
 pub fn collect_creator_fee(ctx: Context<CollectCreatorFee>) -> Result<()> {
-    let share_rate = resolve_creator_fee_share_rate(
-        &ctx.accounts.creator_fee_share,
-        &ctx.accounts.amm_config,
-    )?;
+    let share_rate =
+        resolve_creator_fee_share_rate(&ctx.accounts.creator_fee_share, &ctx.accounts.amm_config)?;
 
     let mut pool_state = ctx.accounts.pool_state.load_mut()?;
     if pool_state.creator_fees_token_0 == 0 && pool_state.creator_fees_token_1 == 0 {

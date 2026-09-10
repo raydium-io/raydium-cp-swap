@@ -254,23 +254,6 @@ pub mod raydium_cp_swap {
         instructions::close_creator_fee_share(ctx)
     }
 
-    /// Collect the share of the creator fee retained by the protocol.
-    /// Must be called by the admin or the shared creator fee owner.
-    ///
-    /// # Arguments
-    ///
-    /// * `ctx` - The context of accounts
-    /// * `amount_0_requested` - The maximum amount of token_0 to send, can be 0 to collect fees in only token_1
-    /// * `amount_1_requested` - The maximum amount of token_1 to send, can be 0 to collect fees in only token_0
-    ///
-    pub fn collect_shared_creator_fee(
-        ctx: Context<CollectSharedCreatorFee>,
-        amount_0_requested: u64,
-        amount_1_requested: u64,
-    ) -> Result<()> {
-        instructions::collect_shared_creator_fee(ctx, amount_0_requested, amount_1_requested)
-    }
-
     /// Creates a pool for the given token pair and the initial price
     ///
     /// # Arguments

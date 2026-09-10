@@ -125,16 +125,12 @@ pub struct PoolState {
     pub padding1: [u8; 6],
     pub creator_fees_token_0: u64,
     pub creator_fees_token_1: u64,
-    /// The share of the collected creator fee split off to the protocol, waiting to be
-    /// collected by the admin through `collect_shared_creator_fee`.
-    pub shared_creator_fees_token_0: u64,
-    pub shared_creator_fees_token_1: u64,
     /// padding for future updates
-    pub padding: [u64; 26],
+    pub padding: [u64; 28],
 }
 
 impl PoolState {
-    pub const LEN: usize = 8 + 10 * 32 + 1 * 5 + 8 * 7 + 1 * 2 + 6 * 1 + 2 * 8 + 2 * 8 + 8 * 26;
+    pub const LEN: usize = 8 + 10 * 32 + 1 * 5 + 8 * 7 + 1 * 2 + 6 * 1 + 2 * 8 + 8 * 28;
 
     pub fn initialize(
         &mut self,
@@ -179,9 +175,7 @@ impl PoolState {
         self.padding1 = [0u8; 6];
         self.creator_fees_token_0 = 0;
         self.creator_fees_token_1 = 0;
-        self.shared_creator_fees_token_0 = 0;
-        self.shared_creator_fees_token_1 = 0;
-        self.padding = [0u64; 26];
+        self.padding = [0u64; 28];
     }
 
     pub fn set_status(&mut self, status: u8) {
@@ -206,19 +200,19 @@ impl PoolState {
 
     /// Settle the accrued creator fee at `share_rate`: the protocol's share is booked on
     /// the pool and stays in the vault until the admin collects it through
-    /// `collect_shared_creator_fee`, and the amounts owed to the creator are returned.
+    /// `collect_protocol_fee`, and the amounts owed to the creator are returned.
     pub fn settle_creator_fee(&mut self, share_rate: u64) -> Result<(u64, u64)> {
         let (creator_amount_0, shared_amount_0) =
             split_creator_fee_shared_amount(self.creator_fees_token_0, share_rate)?;
         let (creator_amount_1, shared_amount_1) =
             split_creator_fee_shared_amount(self.creator_fees_token_1, share_rate)?;
 
-        let shared_creator_fees_token_0 = self.shared_creator_fees_token_0;
-        let shared_creator_fees_token_1 = self.shared_creator_fees_token_1;
-        self.shared_creator_fees_token_0 = shared_creator_fees_token_0
+        let protocol_fees_token_0 = self.protocol_fees_token_0;
+        let protocol_fees_token_1 = self.protocol_fees_token_1;
+        self.protocol_fees_token_0 = protocol_fees_token_0
             .checked_add(shared_amount_0)
             .ok_or(ErrorCode::MathOverflow)?;
-        self.shared_creator_fees_token_1 = shared_creator_fees_token_1
+        self.protocol_fees_token_1 = protocol_fees_token_1
             .checked_add(shared_amount_1)
             .ok_or(ErrorCode::MathOverflow)?;
 
@@ -234,16 +228,12 @@ impl PoolState {
             .checked_add(self.fund_fees_token_0)
             .ok_or(ErrorCode::MathOverflow)?
             .checked_add(self.creator_fees_token_0)
-            .ok_or(ErrorCode::MathOverflow)?
-            .checked_add(self.shared_creator_fees_token_0)
             .ok_or(ErrorCode::MathOverflow)?;
         let fees_token_1 = self
             .protocol_fees_token_1
             .checked_add(self.fund_fees_token_1)
             .ok_or(ErrorCode::MathOverflow)?
             .checked_add(self.creator_fees_token_1)
-            .ok_or(ErrorCode::MathOverflow)?
-            .checked_add(self.shared_creator_fees_token_1)
             .ok_or(ErrorCode::MathOverflow)?;
         Ok((
             vault_0
@@ -434,45 +424,25 @@ pub mod pool_test {
         let fees = (
             pool_state.creator_fees_token_0,
             pool_state.creator_fees_token_1,
-            pool_state.shared_creator_fees_token_0,
-            pool_state.shared_creator_fees_token_1,
+            pool_state.protocol_fees_token_0,
+            pool_state.protocol_fees_token_1,
         );
         assert_eq!(fees, (0, 0, 200, 1));
 
         // a second settlement adds to what is already booked
         pool_state.creator_fees_token_0 = 500;
         assert_eq!(pool_state.settle_creator_fee(200_000).unwrap(), (400, 0));
-        let shared_0 = pool_state.shared_creator_fees_token_0;
+        let shared_0 = pool_state.protocol_fees_token_0;
         assert_eq!(shared_0, 300);
     }
 
     #[test]
     fn settle_creator_fee_reports_overflow_of_the_booked_share() {
         let mut pool_state = PoolState::default();
-        pool_state.shared_creator_fees_token_0 = u64::MAX;
+        pool_state.protocol_fees_token_0 = u64::MAX;
         pool_state.creator_fees_token_0 = 1_000;
 
         assert!(pool_state.settle_creator_fee(200_000).is_err());
-    }
-
-    /// The shared creator fee sits in the vault until the admin collects it, so it must
-    /// not be counted as liquidity, otherwise LPs could withdraw it.
-    #[test]
-    fn shared_creator_fee_is_not_liquidity() {
-        let mut pool_state = PoolState::default();
-        pool_state.protocol_fees_token_0 = 1;
-        pool_state.fund_fees_token_0 = 2;
-        pool_state.creator_fees_token_0 = 4;
-        pool_state.shared_creator_fees_token_0 = 8;
-        pool_state.protocol_fees_token_1 = 16;
-        pool_state.fund_fees_token_1 = 32;
-        pool_state.creator_fees_token_1 = 64;
-        pool_state.shared_creator_fees_token_1 = 128;
-
-        assert_eq!(
-            pool_state.vault_amount_without_fee(1000, 1000).unwrap(),
-            (1000 - 15, 1000 - 240)
-        );
     }
 
     mod pool_status_test {
