@@ -73,9 +73,30 @@ pub struct Swap<'info> {
 }
 
 pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u64) -> Result<()> {
+    let trade_fee_rate = ctx.accounts.amm_config.trade_fee_rate;
+    swap_base_input_with_fee(ctx.accounts, amount_in, minimum_amount_out, trade_fee_rate, None)
+}
+
+/// Optional guard for collection rebalance swaps: rates (1e9 == 1.0) valuing one whole input /
+/// output token in the collection numeraire. The swap must strictly reduce
+/// `|value(vault_0) - value(vault_1)|`.
+pub struct RebalanceGuard {
+    pub input_rate: u64,
+    pub output_rate: u64,
+}
+
+/// Shared body of `swap_base_input` and `rebalance_swap_base_input`; `trade_fee_rate` is the
+/// effective LP fee rate for this swap (the config rate, or a discounted one).
+pub fn swap_base_input_with_fee<'info>(
+    accounts: &mut Swap<'info>,
+    amount_in: u64,
+    minimum_amount_out: u64,
+    trade_fee_rate: u64,
+    rebalance: Option<RebalanceGuard>,
+) -> Result<()> {
     let block_timestamp = solana_program::clock::Clock::get()?.unix_timestamp as u64;
-    let pool_id = ctx.accounts.pool_state.key();
-    let pool_state = &mut ctx.accounts.pool_state.load_mut()?;
+    let pool_id = accounts.pool_state.key();
+    let pool_state = &mut accounts.pool_state.load_mut()?;
     if !pool_state.get_status_by_bit(PoolStatusBitIndex::Swap)
         || block_timestamp < pool_state.open_time
     {
@@ -83,7 +104,7 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
     }
 
     let transfer_fee =
-        get_transfer_fee(&ctx.accounts.input_token_mint.to_account_info(), amount_in)?;
+        get_transfer_fee(&accounts.input_token_mint.to_account_info(), amount_in)?;
     // Take transfer fees into account for actual amount transferred in
     let actual_amount_in = amount_in.saturating_sub(transfer_fee);
     require_gt!(actual_amount_in, 0);
@@ -96,25 +117,25 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
         token_1_price_x64,
         is_creator_fee_on_input,
     } = pool_state.get_swap_params(
-        ctx.accounts.input_vault.key(),
-        ctx.accounts.output_vault.key(),
-        ctx.accounts.input_vault.amount,
-        ctx.accounts.output_vault.amount,
+        accounts.input_vault.key(),
+        accounts.output_vault.key(),
+        accounts.input_vault.amount,
+        accounts.output_vault.amount,
     )?;
     let constant_before = u128::from(total_input_token_amount)
         .checked_mul(u128::from(total_output_token_amount))
         .unwrap();
 
     let creator_fee_rate =
-        pool_state.adjust_creator_fee_rate(ctx.accounts.amm_config.creator_fee_rate);
+        pool_state.adjust_creator_fee_rate(accounts.amm_config.creator_fee_rate);
     let result = CurveCalculator::swap_base_input(
         u128::from(actual_amount_in),
         u128::from(total_input_token_amount),
         u128::from(total_output_token_amount),
-        ctx.accounts.amm_config.trade_fee_rate,
+        trade_fee_rate,
         creator_fee_rate,
-        ctx.accounts.amm_config.protocol_fee_rate,
-        ctx.accounts.amm_config.fund_fee_rate,
+        accounts.amm_config.protocol_fee_rate,
+        accounts.amm_config.fund_fee_rate,
         is_creator_fee_on_input,
     )
     .ok_or(ErrorCode::ZeroTradingTokens)?;
@@ -142,7 +163,7 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
     let (output_transfer_amount, output_transfer_fee) = {
         let amount_out = u64::try_from(result.output_amount).unwrap();
         let transfer_fee = get_transfer_fee(
-            &ctx.accounts.output_token_mint.to_account_info(),
+            &accounts.output_token_mint.to_account_info(),
             amount_out,
         )?;
         let amount_received = amount_out.checked_sub(transfer_fee).unwrap();
@@ -171,37 +192,62 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
         input_transfer_fee,
         output_transfer_fee,
         base_input: true,
-        input_mint: ctx.accounts.input_token_mint.key(),
-        output_mint: ctx.accounts.output_token_mint.key(),
+        input_mint: accounts.input_token_mint.key(),
+        output_mint: accounts.output_token_mint.key(),
         trade_fee: u64::try_from(result.trade_fee).unwrap(),
         creator_fee: u64::try_from(result.creator_fee).unwrap(),
         creator_fee_on_input: is_creator_fee_on_input,
     });
     require_gte!(constant_after, constant_before);
+    if let Some(guard) = rebalance {
+        let value = |amount: u64, decimals: u8, rate: u64| -> Option<u128> {
+            u128::from(amount)
+                .checked_mul(10u128.checked_pow(18u32.checked_sub(u32::from(decimals))?)?)?
+                .checked_mul(u128::from(rate))?
+                .checked_div(u128::from(crate::states::RATE_ONE))
+        };
+        let (in_dec, out_dec) = (
+            accounts.input_token_mint.decimals,
+            accounts.output_token_mint.decimals,
+        );
+        let imbalance = |input_vault: u128, output_vault: u128| -> Option<u128> {
+            let a = value(u64::try_from(input_vault).ok()?, in_dec, guard.input_rate)?;
+            let b = value(u64::try_from(output_vault).ok()?, out_dec, guard.output_rate)?;
+            Some(a.abs_diff(b))
+        };
+        let before = imbalance(
+            u128::from(total_input_token_amount),
+            u128::from(total_output_token_amount),
+        )
+        .ok_or(ErrorCode::MathOverflow)?;
+        let after = imbalance(result.new_input_vault_amount, result.new_output_vault_amount)
+            .ok_or(ErrorCode::MathOverflow)?;
+        require_gt!(before, after, ErrorCode::NotRebalancing);
+    }
 
     transfer_from_user_to_pool_vault(
-        ctx.accounts.payer.to_account_info(),
-        ctx.accounts.input_token_account.to_account_info(),
-        ctx.accounts.input_vault.to_account_info(),
-        ctx.accounts.input_token_mint.to_account_info(),
-        ctx.accounts.input_token_program.to_account_info(),
+        accounts.payer.to_account_info(),
+        accounts.input_token_account.to_account_info(),
+        accounts.input_vault.to_account_info(),
+        accounts.input_token_mint.to_account_info(),
+        accounts.input_token_program.to_account_info(),
         input_transfer_amount,
-        ctx.accounts.input_token_mint.decimals,
+        accounts.input_token_mint.decimals,
     )?;
 
     transfer_from_pool_vault_to_user(
-        ctx.accounts.authority.to_account_info(),
-        ctx.accounts.output_vault.to_account_info(),
-        ctx.accounts.output_token_account.to_account_info(),
-        ctx.accounts.output_token_mint.to_account_info(),
-        ctx.accounts.output_token_program.to_account_info(),
+        accounts.authority.to_account_info(),
+        accounts.output_vault.to_account_info(),
+        accounts.output_token_account.to_account_info(),
+        accounts.output_token_mint.to_account_info(),
+        accounts.output_token_program.to_account_info(),
         output_transfer_amount,
-        ctx.accounts.output_token_mint.decimals,
+        accounts.output_token_mint.decimals,
         &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
     )?;
 
     // update the previous price to the observation
-    ctx.accounts.observation_state.load_mut()?.update(
+    accounts.observation_state.load_mut()?.update(
         oracle::block_timestamp(),
         token_0_price_x64,
         token_1_price_x64,

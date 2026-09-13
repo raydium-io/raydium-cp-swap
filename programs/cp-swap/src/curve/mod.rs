@@ -7,3 +7,6 @@ pub mod fees;
 pub use calculator::*;
 pub use constant_product::*;
 pub use fees::*;
+
+pub mod stable;
+pub use stable::*;
