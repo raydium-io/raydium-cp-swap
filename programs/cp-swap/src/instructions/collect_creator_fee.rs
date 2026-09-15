@@ -29,19 +29,6 @@ pub struct CollectCreatorFee<'info> {
     #[account(address = pool_state.load()?.amm_config)]
     pub amm_config: Account<'info, AmmConfig>,
 
-    /// CHECK: stores the custom share of the creator fee retained by the protocol.
-    /// Must always be passed but is not required to exist, in which case the rate
-    /// configured on `amm_config` applies.
-    #[account(
-        seeds = [
-            CREATOR_FEE_SHARE_SEED.as_bytes(),
-            creator.key().as_ref(),
-            amm_config.key().as_ref(),
-        ],
-        bump,
-    )]
-    pub creator_fee_share: UncheckedAccount<'info>,
-
     /// The address that holds pool tokens for token_0
     #[account(
         mut,
@@ -96,6 +83,19 @@ pub struct CollectCreatorFee<'info> {
     pub associated_token_program: Program<'info, AssociatedToken>,
     /// To create a new program account
     pub system_program: Program<'info, System>,
+
+    /// CHECK: stores the custom share of the creator fee retained by the protocol.
+    /// Must always be passed but is not required to exist, in which case the rate
+    /// configured on `amm_config` applies.
+    #[account(
+        seeds = [
+            CREATOR_FEE_SHARE_SEED.as_bytes(),
+            creator.key().as_ref(),
+            amm_config.key().as_ref(),
+        ],
+        bump,
+    )]
+    pub creator_fee_share: UncheckedAccount<'info>,
 }
 
 pub fn collect_creator_fee(ctx: Context<CollectCreatorFee>) -> Result<()> {
