@@ -37,6 +37,9 @@ uint = "0.10.0"
 solana-security-txt = "1.1.1"
 bytemuck = { version = "1.4.0", features = ["derive", "min_const_generics"] }
 arrayref = { version = "0.3.6" }
+spl-transfer-hook-interface = "=2.1.0"
+spl-tlv-account-resolution = "=0.11.1"
+spl-type-length-value = "=0.9.1"
 
 [dev-dependencies]
 spl-math = { version = "0.3", features = ["no-entrypoint"] }

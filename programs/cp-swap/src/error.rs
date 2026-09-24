@@ -42,4 +42,16 @@ pub enum ErrorCode {
     NoFeeCollect,
     #[msg("Lamports calculate error")]
     LamportsCalculateError,
+    #[msg("The mint's transfer hook program is not supported")]
+    HookProgramNotSupported,
+    #[msg("The transfer hook declares more extra accounts than supported")]
+    HookExtraAccountsTooMany,
+    #[msg("The transfer hook derives an extra account from the transfer amount")]
+    HookExtraAccountUsesInstructionData,
+    #[msg("Missing the transfer hook extra account metas account")]
+    NoExtraAccountsForTransferHook,
+    #[msg(
+        "The transfer hook derives an extra account from token account data the transfer changes"
+    )]
+    HookExtraAccountUsesTransferredData,
 }

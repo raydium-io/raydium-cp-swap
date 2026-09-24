@@ -96,9 +96,16 @@ pub struct CollectCreatorFee<'info> {
         bump,
     )]
     pub creator_fee_share: UncheckedAccount<'info>,
+    // remaining account: transfer hook
+    // For each Token-2022 mint that points at a TransferHook program, in any order since
+    // accounts are located by key:
+    //   - the hook program
+    //   - its ExtraAccountMetaList PDA, seeds ["extra-account-metas", mint] under the hook program
+    //   - every extra account that list resolves to
+    // Mints without a hook program need nothing here.
 }
 
-pub fn collect_creator_fee(ctx: Context<CollectCreatorFee>) -> Result<()> {
+pub fn collect_creator_fee<'info>(ctx: Context<'info, CollectCreatorFee<'info>>) -> Result<()> {
     let share_rate =
         resolve_creator_fee_share_rate(&ctx.accounts.creator_fee_share, &ctx.accounts.amm_config)?;
 
@@ -108,6 +115,9 @@ pub fn collect_creator_fee(ctx: Context<CollectCreatorFee>) -> Result<()> {
     }
     let (creator_amount_0, creator_amount_1) = pool_state.settle_creator_fee(share_rate)?;
     pool_state.recent_epoch = Clock::get()?.epoch;
+    // Release the borrow before any transfer CPI: a hook may list the pool among its extra
+    // accounts, and `invoke_signed` rejects an account that is still borrowed.
+    drop(pool_state);
 
     let signer_seeds: &[&[u8]] = &[crate::AUTH_SEED.as_bytes(), &[ctx.bumps.authority]];
 
@@ -117,6 +127,7 @@ pub fn collect_creator_fee(ctx: Context<CollectCreatorFee>) -> Result<()> {
         ctx.accounts.creator_token_0.to_account_info(),
         ctx.accounts.vault_0_mint.to_account_info(),
         ctx.accounts.token_0_program.to_account_info(),
+        ctx.remaining_accounts,
         creator_amount_0,
         ctx.accounts.vault_0_mint.decimals,
         &[signer_seeds],
@@ -128,6 +139,7 @@ pub fn collect_creator_fee(ctx: Context<CollectCreatorFee>) -> Result<()> {
         ctx.accounts.creator_token_1.to_account_info(),
         ctx.accounts.vault_1_mint.to_account_info(),
         ctx.accounts.token_1_program.to_account_info(),
+        ctx.remaining_accounts,
         creator_amount_1,
         ctx.accounts.vault_1_mint.decimals,
         &[signer_seeds],

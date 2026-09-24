@@ -177,6 +177,16 @@ pub struct Initialize<'info> {
     //     bump
     // )]
     // pub support_mint1_associated: Account<'info, SupportMintAssociated>,
+
+    // remaining account: transfer hook
+    // For each Token-2022 mint that points at a TransferHook program, in any order since
+    // accounts are located by key:
+    //   - the hook program
+    //   - its ExtraAccountMetaList PDA, seeds ["extra-account-metas", mint] under the hook program
+    //   - every extra account that list resolves to
+    // Mints without a hook program need nothing here.
+    // A hook mint must also be whitelisted via the support_mint accounts above, and its
+    // ExtraAccountMetaList must be present: it is validated here and drives the initial deposit.
 }
 
 impl<'info> Initialize<'info> {
@@ -268,15 +278,31 @@ pub(crate) fn initialize_pool(
     enable_creator_fee: bool,
     creator_fee_on: CreatorFeeOn,
 ) -> Result<()> {
-    let mint0_associated_is_initialized =
-        support_mint_associated_is_initialized(accounts.remaining_accounts, accounts.token_0_mint)?;
-    let mint1_associated_is_initialized =
-        support_mint_associated_is_initialized(accounts.remaining_accounts, accounts.token_1_mint)?;
-    if !(is_supported_mint(accounts.token_0_mint, mint0_associated_is_initialized).unwrap()
-        && is_supported_mint(accounts.token_1_mint, mint1_associated_is_initialized).unwrap())
+    let bypass_mint_whitelist = accounts.payer.key() == crate::hook_pool_creator::ID;
+    let mint0_ok = bypass_mint_whitelist
+        || support_mint_associated_is_initialized(
+            accounts.remaining_accounts,
+            accounts.token_0_mint,
+        )?;
+    let mint1_ok = bypass_mint_whitelist
+        || support_mint_associated_is_initialized(
+            accounts.remaining_accounts,
+            accounts.token_1_mint,
+        )?;
+    if !(is_supported_mint(accounts.token_0_mint, mint0_ok)?
+        && is_supported_mint(accounts.token_1_mint, mint1_ok)?)
     {
         return err!(ErrorCode::NotSupportMint);
     }
+    // The bypass admits any extension set; hook constructibility is still enforced.
+    validate_hook_mint(
+        &accounts.token_0_mint.to_account_info(),
+        accounts.remaining_accounts,
+    )?;
+    validate_hook_mint(
+        &accounts.token_1_mint.to_account_info(),
+        accounts.remaining_accounts,
+    )?;
 
     if accounts.amm_config.disable_create_pool {
         return err!(ErrorCode::NotApproved);
@@ -324,17 +350,13 @@ pub(crate) fn initialize_pool(
         &accounts.token_1_mint.to_account_info(),
         &accounts.system_program.to_account_info(),
     )?;
-    let pool_state = &mut pool_state_loader.load_init()?;
-
-    let mut observation_state = accounts.observation_state.load_init()?;
-    observation_state.pool_id = accounts.pool_state.key();
-
     transfer_from_user_to_pool_vault(
         accounts.payer.to_account_info(),
         accounts.payer_token_0.to_account_info(),
         accounts.token_0_vault.to_account_info(),
         accounts.token_0_mint.to_account_info(),
         accounts.token_0_program.to_account_info(),
+        accounts.remaining_accounts,
         init_amount_0,
         accounts.token_0_mint.decimals,
     )?;
@@ -345,6 +367,7 @@ pub(crate) fn initialize_pool(
         accounts.token_1_vault.to_account_info(),
         accounts.token_1_mint.to_account_info(),
         accounts.token_1_program.to_account_info(),
+        accounts.remaining_accounts,
         init_amount_1,
         accounts.token_1_mint.decimals,
     )?;
@@ -419,6 +442,13 @@ pub(crate) fn initialize_pool(
             ],
         )?;
     }
+
+    // Loaded only now, after every transfer: a hook may list the pool or its observation
+    // among its extra accounts, and `invoke_signed` rejects an account that is still borrowed.
+    let pool_state = &mut pool_state_loader.load_init()?;
+
+    let mut observation_state = accounts.observation_state.load_init()?;
+    observation_state.pool_id = accounts.pool_state.key();
 
     pool_state.initialize(
         accounts.authority_bump,
