@@ -6,15 +6,15 @@ use crate::utils::token::*;
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program;
 
-pub fn swap_base_output(
-    ctx: Context<Swap>,
+pub fn swap_base_output<'info>(
+    ctx: Context<'info, Swap<'info>>,
     max_amount_in: u64,
     amount_out_received: u64,
 ) -> Result<()> {
     require_gt!(amount_out_received, 0);
     let block_timestamp = solana_program::clock::Clock::get()?.unix_timestamp as u64;
     let pool_id = ctx.accounts.pool_state.key();
-    let pool_state = &mut ctx.accounts.pool_state.load_mut()?;
+    let mut pool_state = ctx.accounts.pool_state.load_mut()?;
     if !pool_state.get_status_by_bit(PoolStatusBitIndex::Swap)
         || block_timestamp < pool_state.open_time
     {
@@ -121,12 +121,19 @@ pub fn swap_base_output(
     });
     require_gte!(constant_after, constant_before);
 
+    let auth_bump = pool_state.auth_bump;
+    pool_state.recent_epoch = Clock::get()?.epoch;
+    // Release the borrow before any transfer CPI: a hook may list the pool among its extra
+    // accounts, and `invoke_signed` rejects an account that is still borrowed.
+    drop(pool_state);
+
     transfer_from_user_to_pool_vault(
         ctx.accounts.payer.to_account_info(),
         ctx.accounts.input_token_account.to_account_info(),
         ctx.accounts.input_vault.to_account_info(),
         ctx.accounts.input_token_mint.to_account_info(),
         ctx.accounts.input_token_program.to_account_info(),
+        ctx.remaining_accounts,
         input_transfer_amount,
         ctx.accounts.input_token_mint.decimals,
     )?;
@@ -137,9 +144,10 @@ pub fn swap_base_output(
         ctx.accounts.output_token_account.to_account_info(),
         ctx.accounts.output_token_mint.to_account_info(),
         ctx.accounts.output_token_program.to_account_info(),
+        ctx.remaining_accounts,
         output_transfer_amount,
         ctx.accounts.output_token_mint.decimals,
-        &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
+        &[&[crate::AUTH_SEED.as_bytes(), &[auth_bump]]],
     )?;
 
     // update the previous price to the observation
@@ -148,7 +156,6 @@ pub fn swap_base_output(
         token_0_price_x64,
         token_1_price_x64,
     )?;
-    pool_state.recent_epoch = Clock::get()?.epoch;
 
     Ok(())
 }

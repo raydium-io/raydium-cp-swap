@@ -188,28 +188,51 @@ pub struct InitializeWithPermission<'info> {
     //     bump
     // )]
     // pub support_mint1_associated: Account<'info, SupportMintAssociated>,
+
+    // remaining account: transfer hook
+    // For each Token-2022 mint that points at a TransferHook program, in any order since
+    // accounts are located by key:
+    //   - the hook program
+    //   - its ExtraAccountMetaList PDA, seeds ["extra-account-metas", mint] under the hook program
+    //   - every extra account that list resolves to
+    // Mints without a hook program need nothing here.
+    // A hook mint must also be whitelisted via the support_mint accounts above (unless the
+    // payer is `hook_pool_creator`), and its ExtraAccountMetaList must be present: it is
+    // validated here and drives the initial deposit.
 }
 
-pub fn initialize_with_permission(
-    ctx: Context<InitializeWithPermission>,
+pub fn initialize_with_permission<'info>(
+    ctx: Context<'info, InitializeWithPermission<'info>>,
     init_amount_0: u64,
     init_amount_1: u64,
     open_time: u64,
     creator_fee_on: CreatorFeeOn,
 ) -> Result<()> {
-    let mint0_associated_is_initialized = support_mint_associated_is_initialized(
-        &ctx.remaining_accounts,
-        &ctx.accounts.token_0_mint,
-    )?;
-    let mint1_associated_is_initialized = support_mint_associated_is_initialized(
-        &ctx.remaining_accounts,
-        &ctx.accounts.token_1_mint,
-    )?;
-    if !(is_supported_mint(&ctx.accounts.token_0_mint, mint0_associated_is_initialized).unwrap()
-        && is_supported_mint(&ctx.accounts.token_1_mint, mint1_associated_is_initialized).unwrap())
+    let bypass_mint_whitelist = ctx.accounts.payer.key() == crate::hook_pool_creator::ID;
+    let mint0_ok = bypass_mint_whitelist
+        || support_mint_associated_is_initialized(
+            &ctx.remaining_accounts,
+            &ctx.accounts.token_0_mint,
+        )?;
+    let mint1_ok = bypass_mint_whitelist
+        || support_mint_associated_is_initialized(
+            &ctx.remaining_accounts,
+            &ctx.accounts.token_1_mint,
+        )?;
+    if !(is_supported_mint(&ctx.accounts.token_0_mint, mint0_ok)?
+        && is_supported_mint(&ctx.accounts.token_1_mint, mint1_ok)?)
     {
         return err!(ErrorCode::NotSupportMint);
     }
+    // The bypass admits any extension set; hook constructibility is still enforced.
+    validate_hook_mint(
+        &ctx.accounts.token_0_mint.to_account_info(),
+        ctx.remaining_accounts,
+    )?;
+    validate_hook_mint(
+        &ctx.accounts.token_1_mint.to_account_info(),
+        ctx.remaining_accounts,
+    )?;
 
     if ctx.accounts.amm_config.disable_create_pool {
         return err!(ErrorCode::NotApproved);
@@ -258,17 +281,13 @@ pub fn initialize_with_permission(
         &ctx.accounts.token_1_mint.to_account_info(),
         &ctx.accounts.system_program.to_account_info(),
     )?;
-    let pool_state = &mut pool_state_loader.load_init()?;
-
-    let mut observation_state = ctx.accounts.observation_state.load_init()?;
-    observation_state.pool_id = ctx.accounts.pool_state.key();
-
     transfer_from_user_to_pool_vault(
         ctx.accounts.payer.to_account_info(),
         ctx.accounts.payer_token_0.to_account_info(),
         ctx.accounts.token_0_vault.to_account_info(),
         ctx.accounts.token_0_mint.to_account_info(),
         ctx.accounts.token_0_program.to_account_info(),
+        ctx.remaining_accounts,
         init_amount_0,
         ctx.accounts.token_0_mint.decimals,
     )?;
@@ -279,6 +298,7 @@ pub fn initialize_with_permission(
         ctx.accounts.token_1_vault.to_account_info(),
         ctx.accounts.token_1_mint.to_account_info(),
         ctx.accounts.token_1_program.to_account_info(),
+        ctx.remaining_accounts,
         init_amount_1,
         ctx.accounts.token_1_mint.decimals,
     )?;
@@ -353,6 +373,13 @@ pub fn initialize_with_permission(
             ],
         )?;
     }
+
+    // Loaded only now, after every transfer: a hook may list the pool or its observation
+    // among its extra accounts, and `invoke_signed` rejects an account that is still borrowed.
+    let pool_state = &mut pool_state_loader.load_init()?;
+
+    let mut observation_state = ctx.accounts.observation_state.load_init()?;
+    observation_state.pool_id = ctx.accounts.pool_state.key();
 
     pool_state.initialize(
         ctx.bumps.authority,

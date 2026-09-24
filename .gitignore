@@ -16,3 +16,7 @@ programs/amm/proptest-regressions
 runbooks
 txtx.yml
 .surfpool/
+
+# Keypairs must never be committed, whatever the rules around them happen to be.
+*keypair*.json
+*.pem

@@ -1,6 +1,8 @@
 import { Program, BN } from "@anchor-lang/core";
 import { RaydiumCpSwap } from "../../target/types/raydium_cp_swap";
+import { waitUntilPoolOpen } from "./web3";
 import {
+  AccountMeta,
   Connection,
   ConfirmOptions,
   PublicKey,
@@ -221,6 +223,9 @@ export async function setupSwapTest(
     new BN(100000000000),
     confirmOptions
   );
+
+  // The pool is untradeable for one second after `initialize`; see `waitUntilPoolOpen`.
+  await waitUntilPoolOpen(connection, owner, poolState.openTime.toNumber());
   return { configAddress, poolAddress, poolState };
 }
 
@@ -261,7 +266,6 @@ export async function createAmmConfig(
     .instruction();
 
   const tx = await sendTransaction(connection, [ix], [owner], confirmOptions);
-  console.log("init amm config tx: ", tx);
   return address;
 }
 
@@ -278,7 +282,9 @@ export async function initialize(
     initAmount0: new BN(10000000000),
     initAmount1: new BN(20000000000),
   },
-  createPoolFee = new PublicKey("DNXgeM9EiiaAbaWvwjHj9fQQLAX5ZsfHyvmYUNRAdNC8")
+  createPoolFee = new PublicKey("DNXgeM9EiiaAbaWvwjHj9fQQLAX5ZsfHyvmYUNRAdNC8"),
+  // Whitelist PDAs and transfer hook accounts, all located by key.
+  remainingAccounts: AccountMeta[] = []
 ) {
   const [auth] = await getAuthAddress(program.programId);
   const [poolAddress] = await getPoolAddress(
@@ -350,6 +356,7 @@ export async function initialize(
       systemProgram: SystemProgram.programId,
       rent: SYSVAR_RENT_PUBKEY,
     })
+    .remainingAccounts(remainingAccounts)
     .rpc(confirmOptions);
   const poolState = await program.account.poolState.fetch(poolAddress);
   return { poolAddress, poolState };
@@ -366,7 +373,9 @@ export async function deposit(
   lp_token_amount: BN,
   maximum_token_0_amount: BN,
   maximum_token_1_amount: BN,
-  confirmOptions?: ConfirmOptions
+  confirmOptions?: ConfirmOptions,
+  // Transfer hook accounts, located by key.
+  remainingAccounts: AccountMeta[] = []
 ) {
   const [auth] = await getAuthAddress(program.programId);
   const [poolAddress] = await getPoolAddress(
@@ -429,6 +438,7 @@ export async function deposit(
       vault1Mint: token1,
       lpMint: lpMintAddress,
     })
+    .remainingAccounts(remainingAccounts)
     .rpc(confirmOptions);
   return tx;
 }
@@ -444,7 +454,9 @@ export async function withdraw(
   lp_token_amount: BN,
   minimum_token_0_amount: BN,
   minimum_token_1_amount: BN,
-  confirmOptions?: ConfirmOptions
+  confirmOptions?: ConfirmOptions,
+  // Transfer hook accounts, located by key.
+  remainingAccounts: AccountMeta[] = []
 ) {
   const [auth] = await getAuthAddress(program.programId);
   const [poolAddress] = await getPoolAddress(
@@ -508,6 +520,7 @@ export async function withdraw(
       lpMint: lpMintAddress,
       memoProgram: new PublicKey("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr"),
     })
+    .remainingAccounts(remainingAccounts)
     .rpc(confirmOptions)
     .catch();
 
@@ -527,7 +540,9 @@ export async function swap_base_input(
   confirmOptions?: ConfirmOptions,
   // the pool pda is derived from the mints in token_0/token_1 order, so swapping the
   // pool's token_1 in needs the address passed explicitly
-  poolAddress?: PublicKey
+  poolAddress?: PublicKey,
+  // Transfer hook accounts, located by key.
+  remainingAccounts: AccountMeta[] = []
 ) {
   const [auth] = await getAuthAddress(program.programId);
   const [poolPdaAddress] = await getPoolAddress(
@@ -585,6 +600,7 @@ export async function swap_base_input(
       outputTokenMint: outputToken,
       observationState: observationAddress,
     })
+    .remainingAccounts(remainingAccounts)
     .rpc(confirmOptions);
 
   return tx;
@@ -601,7 +617,9 @@ export async function swap_base_output(
   amount_out_less_fee: BN,
   max_amount_in: BN,
   confirmOptions?: ConfirmOptions,
-  poolAddress?: PublicKey
+  poolAddress?: PublicKey,
+  // Transfer hook accounts, located by key.
+  remainingAccounts: AccountMeta[] = []
 ) {
   const [auth] = await getAuthAddress(program.programId);
   const [poolPdaAddress] = await getPoolAddress(
@@ -658,6 +676,7 @@ export async function swap_base_output(
       outputTokenMint: outputToken,
       observationState: observationAddress,
     })
+    .remainingAccounts(remainingAccounts)
     .rpc(confirmOptions);
 
   return tx;
@@ -738,7 +757,9 @@ export async function initializeWithPermission(
     initAmount0: new BN(10000000000),
     initAmount1: new BN(20000000000),
   },
-  createPoolFee = new PublicKey("DNXgeM9EiiaAbaWvwjHj9fQQLAX5ZsfHyvmYUNRAdNC8")
+  createPoolFee = new PublicKey("DNXgeM9EiiaAbaWvwjHj9fQQLAX5ZsfHyvmYUNRAdNC8"),
+  // Whitelist PDAs and transfer hook accounts, all located by key.
+  remainingAccounts: AccountMeta[] = []
 ) {
   const [auth] = await getAuthAddress(program.programId);
   const [poolAddress] = await getPoolAddress(
@@ -823,6 +844,7 @@ export async function initializeWithPermission(
     .preInstructions([
       ComputeBudgetProgram.setComputeUnitLimit({ units: 400000 }),
     ])
+    .remainingAccounts(remainingAccounts)
     .signers([payer])
     .rpc(confirmOptions);
 

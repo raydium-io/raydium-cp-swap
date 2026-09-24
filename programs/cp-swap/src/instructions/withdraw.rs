@@ -94,10 +94,17 @@ pub struct Withdraw<'info> {
         address = memo::ID
     )]
     pub memo_program: UncheckedAccount<'info>,
+    // remaining account: transfer hook
+    // For each Token-2022 mint that points at a TransferHook program, in any order since
+    // accounts are located by key:
+    //   - the hook program
+    //   - its ExtraAccountMetaList PDA, seeds ["extra-account-metas", mint] under the hook program
+    //   - every extra account that list resolves to
+    // Mints without a hook program need nothing here.
 }
 
-pub fn withdraw(
-    ctx: Context<Withdraw>,
+pub fn withdraw<'info>(
+    ctx: Context<'info, Withdraw<'info>>,
     lp_token_amount: u64,
     minimum_token_0_amount: u64,
     minimum_token_1_amount: u64,
@@ -105,7 +112,7 @@ pub fn withdraw(
     require_gt!(lp_token_amount, 0);
     require_gte!(ctx.accounts.owner_lp_token.amount, lp_token_amount);
     let pool_id = ctx.accounts.pool_state.key();
-    let pool_state = &mut ctx.accounts.pool_state.load_mut()?;
+    let mut pool_state = ctx.accounts.pool_state.load_mut()?;
     if !pool_state.get_status_by_bit(PoolStatusBitIndex::Withdraw) {
         return err!(ErrorCode::NotApproved);
     }
@@ -176,13 +183,19 @@ pub fn withdraw(
     }
 
     pool_state.lp_supply = pool_state.lp_supply.checked_sub(lp_token_amount).unwrap();
+    pool_state.recent_epoch = Clock::get()?.epoch;
+    let auth_bump = pool_state.auth_bump;
+    // Release the borrow before any transfer CPI: a hook may list the pool among its extra
+    // accounts, and `invoke_signed` rejects an account that is still borrowed.
+    drop(pool_state);
+
     token_burn(
         ctx.accounts.owner.to_account_info(),
         ctx.accounts.token_program.to_account_info(),
         ctx.accounts.lp_mint.to_account_info(),
         ctx.accounts.owner_lp_token.to_account_info(),
         lp_token_amount,
-        &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
+        &[&[crate::AUTH_SEED.as_bytes(), &[auth_bump]]],
     )?;
 
     transfer_from_pool_vault_to_user(
@@ -195,9 +208,10 @@ pub fn withdraw(
         } else {
             ctx.accounts.token_program_2022.to_account_info()
         },
+        ctx.remaining_accounts,
         token_0_amount,
         ctx.accounts.vault_0_mint.decimals,
-        &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
+        &[&[crate::AUTH_SEED.as_bytes(), &[auth_bump]]],
     )?;
 
     transfer_from_pool_vault_to_user(
@@ -210,11 +224,11 @@ pub fn withdraw(
         } else {
             ctx.accounts.token_program_2022.to_account_info()
         },
+        ctx.remaining_accounts,
         token_1_amount,
         ctx.accounts.vault_1_mint.decimals,
-        &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
+        &[&[crate::AUTH_SEED.as_bytes(), &[auth_bump]]],
     )?;
-    pool_state.recent_epoch = Clock::get()?.epoch;
 
     Ok(())
 }

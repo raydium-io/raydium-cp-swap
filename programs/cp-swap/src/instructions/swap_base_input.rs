@@ -70,12 +70,23 @@ pub struct Swap<'info> {
     /// The program account for the most recent oracle observation
     #[account(mut, address = pool_state.load()?.observation_key)]
     pub observation_state: AccountLoader<'info, ObservationState>,
+    // remaining account: transfer hook
+    // For each Token-2022 mint that points at a TransferHook program, in any order since
+    // accounts are located by key:
+    //   - the hook program
+    //   - its ExtraAccountMetaList PDA, seeds ["extra-account-metas", mint] under the hook program
+    //   - every extra account that list resolves to
+    // Mints without a hook program need nothing here.
 }
 
-pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u64) -> Result<()> {
+pub fn swap_base_input<'info>(
+    ctx: Context<'info, Swap<'info>>,
+    amount_in: u64,
+    minimum_amount_out: u64,
+) -> Result<()> {
     let block_timestamp = solana_program::clock::Clock::get()?.unix_timestamp as u64;
     let pool_id = ctx.accounts.pool_state.key();
-    let pool_state = &mut ctx.accounts.pool_state.load_mut()?;
+    let mut pool_state = ctx.accounts.pool_state.load_mut()?;
     if !pool_state.get_status_by_bit(PoolStatusBitIndex::Swap)
         || block_timestamp < pool_state.open_time
     {
@@ -179,12 +190,19 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
     });
     require_gte!(constant_after, constant_before);
 
+    let auth_bump = pool_state.auth_bump;
+    pool_state.recent_epoch = Clock::get()?.epoch;
+    // Release the borrow before any transfer CPI: a hook may list the pool among its extra
+    // accounts, and `invoke_signed` rejects an account that is still borrowed.
+    drop(pool_state);
+
     transfer_from_user_to_pool_vault(
         ctx.accounts.payer.to_account_info(),
         ctx.accounts.input_token_account.to_account_info(),
         ctx.accounts.input_vault.to_account_info(),
         ctx.accounts.input_token_mint.to_account_info(),
         ctx.accounts.input_token_program.to_account_info(),
+        ctx.remaining_accounts,
         input_transfer_amount,
         ctx.accounts.input_token_mint.decimals,
     )?;
@@ -195,9 +213,10 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
         ctx.accounts.output_token_account.to_account_info(),
         ctx.accounts.output_token_mint.to_account_info(),
         ctx.accounts.output_token_program.to_account_info(),
+        ctx.remaining_accounts,
         output_transfer_amount,
         ctx.accounts.output_token_mint.decimals,
-        &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
+        &[&[crate::AUTH_SEED.as_bytes(), &[auth_bump]]],
     )?;
 
     // update the previous price to the observation
@@ -206,7 +225,6 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
         token_0_price_x64,
         token_1_price_x64,
     )?;
-    pool_state.recent_epoch = Clock::get()?.epoch;
 
     Ok(())
 }

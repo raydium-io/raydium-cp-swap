@@ -2,11 +2,26 @@ import * as anchor from "@anchor-lang/core";
 import {
   Connection,
   Signer,
+  SystemProgram,
   Transaction,
   TransactionInstruction,
   TransactionSignature,
   ConfirmOptions,
+  sendAndConfirmTransaction,
 } from "@solana/web3.js";
+
+// web3.js reuses one blockhash for 30s (`BLOCKHASH_CACHE_TIMEOUT_MS`) across every
+// `Connection.sendTransaction(tx, signers)` call - including the ones inside `@solana/spl-token`,
+// which this suite cannot reach. Surfpool only produces a block when a transaction lands, so a
+// burst of transactions rolls its blockhash queue past whatever the cache is still handing out,
+// and the next call dies with `Blockhash not found`. Turning the cache off costs one extra RPC
+// per transaction, which is free against a local validator.
+const __providerEnv = anchor.AnchorProvider.env.bind(anchor.AnchorProvider);
+anchor.AnchorProvider.env = () => {
+  const provider = __providerEnv();
+  (provider.connection as any)._disableBlockhashCaching = true;
+  return provider;
+};
 
 export async function accountExist(
   connection: anchor.web3.Connection,
@@ -38,24 +53,25 @@ export async function sendTransaction(
     preflightCommitment,
   };
 
-  // The blockhash has to be fetched at the commitment preflight simulates against.
-  // Fetching it at the connection's default instead can hand back a blockhash newer
-  // than the simulation bank, which fails as `Blockhash not found` - regularly, once
-  // the local validator is under load. The bounded retry covers the remaining races
-  // (a blockhash that expires between fetch and send); every other error is rethrown
-  // immediately so real failures still surface.
+  // Sign and send raw: `connection.sendTransaction(tx, signers)` swaps in a blockhash from
+  // web3.js's 30s cache, which surfpool's fast-rolling queue may no longer hold. The
+  // blockhash is fetched at the preflight commitment, and only `Blockhash not found`
+  // (a hash expiring between fetch and send) is retried.
   let signature: TransactionSignature;
   for (let attempt = 0; ; attempt++) {
     const tx = new Transaction();
     for (var i = 0; i < ixs.length; i++) {
       tx.add(ixs[i]);
     }
-    tx.recentBlockhash = (
-      await connection.getLatestBlockhash(preflightCommitment)
-    ).blockhash;
+    const { blockhash, lastValidBlockHeight } =
+      await connection.getLatestBlockhash(preflightCommitment);
+    tx.recentBlockhash = blockhash;
+    tx.lastValidBlockHeight = lastValidBlockHeight;
+    tx.feePayer = signers[0].publicKey;
+    tx.sign(...signers);
 
     try {
-      signature = await connection.sendTransaction(tx, signers, sendOpt);
+      signature = await connection.sendRawTransaction(tx.serialize(), sendOpt);
       break;
     } catch (e) {
       if (attempt >= 5 || !String(e).includes("Blockhash not found")) {
@@ -120,4 +136,35 @@ function isPoolNotOpenYet(e: unknown): boolean {
     text.includes(`"Custom":${NOT_APPROVED_ERROR_CODE}`) ||
     text.includes(`"Custom": ${NOT_APPROVED_ERROR_CODE}`)
   );
+}
+
+/// Block until the chain clock has passed `openTime`.
+///
+/// `initialize` forces `open_time = block_timestamp + 1`, and both swap instructions reject with
+/// `NotApproved` while `block_timestamp < open_time` - so a pool is untradeable for one second
+/// after it is created. Surfpool runs with `--block-production-mode transaction`: no transaction,
+/// no block, no clock movement, so waiting passively never works. Each iteration has to land a
+/// transaction to push a block out.
+export async function waitUntilPoolOpen(
+  connection: Connection,
+  payer: Signer,
+  openTime: number
+): Promise<void> {
+  for (let i = 0; i < 20; i++) {
+    const chainTime = await connection.getBlockTime(await connection.getSlot());
+    if (chainTime !== null && chainTime >= openTime) return;
+    await sendAndConfirmTransaction(
+      connection,
+      new Transaction().add(
+        SystemProgram.transfer({
+          fromPubkey: payer.publicKey,
+          toPubkey: payer.publicKey,
+          lamports: 1,
+        })
+      ),
+      [payer]
+    );
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  throw new Error(`pool never opened (open_time ${openTime})`);
 }
