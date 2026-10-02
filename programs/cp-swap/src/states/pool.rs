@@ -1,3 +1,4 @@
+use crate::states::creator_fee_share::split_creator_fee_shared_amount;
 use crate::{curve::TradeDirection, error::ErrorCode};
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::Mint;
@@ -197,6 +198,30 @@ impl PoolState {
         self.status.bitand(status) == 0
     }
 
+    /// Settle the accrued creator fee at `share_rate`: the protocol's share is booked on
+    /// the pool and stays in the vault until the admin collects it through
+    /// `collect_protocol_fee`, and the amounts owed to the creator are returned.
+    pub fn settle_creator_fee(&mut self, share_rate: u64) -> Result<(u64, u64)> {
+        let (creator_amount_0, shared_amount_0) =
+            split_creator_fee_shared_amount(self.creator_fees_token_0, share_rate)?;
+        let (creator_amount_1, shared_amount_1) =
+            split_creator_fee_shared_amount(self.creator_fees_token_1, share_rate)?;
+
+        let protocol_fees_token_0 = self.protocol_fees_token_0;
+        let protocol_fees_token_1 = self.protocol_fees_token_1;
+        self.protocol_fees_token_0 = protocol_fees_token_0
+            .checked_add(shared_amount_0)
+            .ok_or(ErrorCode::MathOverflow)?;
+        self.protocol_fees_token_1 = protocol_fees_token_1
+            .checked_add(shared_amount_1)
+            .ok_or(ErrorCode::MathOverflow)?;
+
+        self.creator_fees_token_0 = 0;
+        self.creator_fees_token_1 = 0;
+
+        Ok((creator_amount_0, creator_amount_1))
+    }
+
     pub fn vault_amount_without_fee(&self, vault_0: u64, vault_1: u64) -> Result<(u64, u64)> {
         let fees_token_0 = self
             .protocol_fees_token_0
@@ -376,6 +401,48 @@ pub mod pool_test {
     #[test]
     fn pool_state_size_test() {
         assert_eq!(std::mem::size_of::<PoolState>(), PoolState::LEN - 8)
+    }
+
+    /// The shared creator fee fields are carved out of the existing padding, so the
+    /// account length must stay the same for already deployed pools to keep loading.
+    #[test]
+    fn pool_state_size_is_unchanged() {
+        assert_eq!(PoolState::LEN, 637);
+    }
+
+    /// A packed struct cannot hand out references to its fields, so the assertions read
+    /// the values into locals first.
+    #[test]
+    fn settle_creator_fee_books_the_shared_part_and_accumulates() {
+        let mut pool_state = PoolState::default();
+        pool_state.creator_fees_token_0 = 1_000;
+        pool_state.creator_fees_token_1 = 9;
+
+        // 20% of 1_000 is 200; 20% of 9 rounds down to 1
+        let owed = pool_state.settle_creator_fee(200_000).unwrap();
+        assert_eq!(owed, (800, 8));
+        let fees = (
+            pool_state.creator_fees_token_0,
+            pool_state.creator_fees_token_1,
+            pool_state.protocol_fees_token_0,
+            pool_state.protocol_fees_token_1,
+        );
+        assert_eq!(fees, (0, 0, 200, 1));
+
+        // a second settlement adds to what is already booked
+        pool_state.creator_fees_token_0 = 500;
+        assert_eq!(pool_state.settle_creator_fee(200_000).unwrap(), (400, 0));
+        let shared_0 = pool_state.protocol_fees_token_0;
+        assert_eq!(shared_0, 300);
+    }
+
+    #[test]
+    fn settle_creator_fee_reports_overflow_of_the_booked_share() {
+        let mut pool_state = PoolState::default();
+        pool_state.protocol_fees_token_0 = u64::MAX;
+        pool_state.creator_fees_token_0 = 1_000;
+
+        assert!(pool_state.settle_creator_fee(200_000).is_err());
     }
 
     mod pool_status_test {

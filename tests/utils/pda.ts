@@ -25,6 +25,14 @@ export const ORACLE_SEED = Buffer.from(
   anchor.utils.bytes.utf8.encode("observation")
 );
 
+export const PERMISSION_SEED = Buffer.from(
+  anchor.utils.bytes.utf8.encode("permission")
+);
+
+export const CREATOR_FEE_SHARE_SEED = Buffer.from(
+  anchor.utils.bytes.utf8.encode("creator_fee_share")
+);
+
 export function u16ToBytes(num: number) {
   const arr = new ArrayBuffer(2);
   const view = new DataView(arr);
@@ -124,4 +132,25 @@ export async function getOrcleAccountAddress(
     programId
   );
   return [address, bump];
+}
+
+export async function getPermissionAddress(
+  permissionAuthority: PublicKey,
+  programId: PublicKey
+): Promise<[PublicKey, number]> {
+  return PublicKey.findProgramAddress(
+    [PERMISSION_SEED, permissionAuthority.toBuffer()],
+    programId
+  );
+}
+
+export async function getCreatorFeeShareAddress(
+  creator: PublicKey,
+  ammConfig: PublicKey,
+  programId: PublicKey
+): Promise<[PublicKey, number]> {
+  return PublicKey.findProgramAddress(
+    [CREATOR_FEE_SHARE_SEED, creator.toBuffer(), ammConfig.toBuffer()],
+    programId
+  );
 }

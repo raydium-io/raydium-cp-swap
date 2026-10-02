@@ -34,32 +34,38 @@ pub struct CollectExcessLamports<'info> {
 pub fn collect_excess_lamports<'info>(
     ctx: Context<'info, CollectExcessLamports<'info>>,
 ) -> Result<()> {
-    for source_lamports_account in ctx.remaining_accounts.into_iter() {
-        if *source_lamports_account.owner == Token::id() {
-            withdraw_excess_lamports_from_token(
-                ctx.accounts.token_program.to_account_info(),
-                source_lamports_account.to_account_info(),
-                ctx.accounts.collect_lamports_wallet.to_account_info(),
-                ctx.accounts.authority.to_account_info(),
-                crate::AUTH_SEED.as_bytes(),
-                ctx.bumps.authority,
-            )?;
+    // The token sources are drained through a CPI, the program owned sources by
+    // moving lamports directly. Those two cannot be interleaved: the runtime only
+    // pushes the caller's lamports changes into its own accounts for the accounts a
+    // CPI actually carries, so a pda debited before a CPI leaves the
+    // transaction wide lamports delta non-zero and the next CPI aborts with
+    // `UnbalancedInstruction` ("sum of account balances before and after
+    // instruction do not match"). `remaining_accounts` is ordered by the caller, so
+    // run every CPI first and only then touch lamports directly.
+    for source_lamports_account in ctx.remaining_accounts.iter() {
+        let token_program = if *source_lamports_account.owner == Token::id() {
+            ctx.accounts.token_program.to_account_info()
         } else if *source_lamports_account.owner == Token2022::id() {
-            withdraw_excess_lamports_from_token(
-                ctx.accounts.token_program_2022.to_account_info(),
-                source_lamports_account.to_account_info(),
-                ctx.accounts.collect_lamports_wallet.to_account_info(),
-                ctx.accounts.authority.to_account_info(),
-                crate::AUTH_SEED.as_bytes(),
-                ctx.bumps.authority,
-            )?;
-        } else if *source_lamports_account.owner == crate::id() {
+            ctx.accounts.token_program_2022.to_account_info()
+        } else {
+            continue;
+        };
+        withdraw_excess_lamports_from_token(
+            token_program,
+            source_lamports_account.to_account_info(),
+            ctx.accounts.collect_lamports_wallet.to_account_info(),
+            ctx.accounts.authority.to_account_info(),
+            crate::AUTH_SEED.as_bytes(),
+            ctx.bumps.authority,
+        )?;
+    }
+
+    for source_lamports_account in ctx.remaining_accounts.iter() {
+        if *source_lamports_account.owner == crate::id() {
             withdraw_excess_lamports_from_pda(
                 source_lamports_account,
                 &ctx.accounts.collect_lamports_wallet.to_account_info(),
             )?;
-        } else {
-            continue;
         }
     }
     Ok(())

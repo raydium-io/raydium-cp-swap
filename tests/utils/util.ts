@@ -22,8 +22,30 @@ import {
   createInitializeTransferFeeConfigInstruction,
   createInitializeMintInstruction,
   getAccount,
+  TokenAccountNotFoundError,
 } from "@solana/spl-token";
 import { sendTransaction } from "./index";
+
+/// `getOrCreateAssociatedTokenAccount` swallows every error from the create
+/// transaction and then reads the account back, so a create that actually failed - a
+/// blockhash race on the local validator, say - surfaces as `TokenAccountNotFoundError`
+/// from that read rather than as the send error. The call is idempotent (a duplicate
+/// create is one of the errors it ignores), so retry it. Only that one error is
+/// retried, so a real failure still surfaces immediately.
+async function getOrCreateAtaWithRetry(
+  ...args: Parameters<typeof getOrCreateAssociatedTokenAccount>
+): ReturnType<typeof getOrCreateAssociatedTokenAccount> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await getOrCreateAssociatedTokenAccount(...args);
+    } catch (e) {
+      if (attempt >= 5 || !(e instanceof TokenAccountNotFoundError)) {
+        throw e;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+  }
+}
 
 // create a token mint and a token2022 mint with transferFeeConfig
 export async function createTokenMintAndAssociatedTokenAccount(
@@ -109,7 +131,7 @@ export async function createTokenMintAndAssociatedTokenAccount(
   const token0Program = tokenArray[0].program;
   const token1Program = tokenArray[1].program;
 
-  const ownerToken0Account = await getOrCreateAssociatedTokenAccount(
+  const ownerToken0Account = await getOrCreateAtaWithRetry(
     connection,
     payer,
     token0,
@@ -137,7 +159,7 @@ export async function createTokenMintAndAssociatedTokenAccount(
   //   ownerToken0Account.address.toString()
   // );
 
-  const ownerToken1Account = await getOrCreateAssociatedTokenAccount(
+  const ownerToken1Account = await getOrCreateAtaWithRetry(
     connection,
     payer,
     token1,

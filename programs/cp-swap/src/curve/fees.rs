@@ -62,6 +62,15 @@ impl Fees {
         )
     }
 
+    /// Calculate the share of the creator fee split off to the protocol.
+    pub fn creator_fee_shared_amount(amount: u128, share_rate: u64) -> Option<u128> {
+        floor_div(
+            amount,
+            u128::from(share_rate),
+            u128::from(FEE_RATE_DENOMINATOR_VALUE),
+        )
+    }
+
     pub fn split_creator_fee(
         total_fee: u128,
         trade_fee_rate: u64,
