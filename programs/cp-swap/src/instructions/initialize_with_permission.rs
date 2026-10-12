@@ -190,8 +190,8 @@ pub struct InitializeWithPermission<'info> {
     // pub support_mint1_associated: Account<'info, SupportMintAssociated>,
 }
 
-pub fn initialize_with_permission(
-    ctx: Context<InitializeWithPermission>,
+pub fn initialize_with_permission<'info>(
+    ctx: Context<'info, InitializeWithPermission<'info>>,
     init_amount_0: u64,
     init_amount_1: u64,
     open_time: u64,
@@ -205,9 +205,25 @@ pub fn initialize_with_permission(
         &ctx.remaining_accounts,
         &ctx.accounts.token_1_mint,
     )?;
-    if !(is_supported_mint(&ctx.accounts.token_0_mint, mint0_associated_is_initialized).unwrap()
-        && is_supported_mint(&ctx.accounts.token_1_mint, mint1_associated_is_initialized).unwrap())
-    {
+    // an active transfer hook is allowed only when its program is enshrined by the admin (create_support_hook_program);
+    // the PDA rides in remaining_accounts next to the support-mint ones
+    let mint0_hook_enshrined = match required_hook_program(&ctx.accounts.token_0_mint)? {
+        Some(program) => support_hook_program_is_initialized(&ctx.remaining_accounts, &program)?,
+        None => false,
+    };
+    let mint1_hook_enshrined = match required_hook_program(&ctx.accounts.token_1_mint)? {
+        Some(program) => support_hook_program_is_initialized(&ctx.remaining_accounts, &program)?,
+        None => false,
+    };
+    if !(is_supported_mint(
+        &ctx.accounts.token_0_mint,
+        mint0_associated_is_initialized,
+        mint0_hook_enshrined,
+    )? && is_supported_mint(
+        &ctx.accounts.token_1_mint,
+        mint1_associated_is_initialized,
+        mint1_hook_enshrined,
+    )?) {
         return err!(ErrorCode::NotSupportMint);
     }
 
@@ -271,6 +287,7 @@ pub fn initialize_with_permission(
         ctx.accounts.token_0_program.to_account_info(),
         init_amount_0,
         ctx.accounts.token_0_mint.decimals,
+        ctx.remaining_accounts,
     )?;
 
     transfer_from_user_to_pool_vault(
@@ -281,6 +298,7 @@ pub fn initialize_with_permission(
         ctx.accounts.token_1_program.to_account_info(),
         init_amount_1,
         ctx.accounts.token_1_mint.decimals,
+        ctx.remaining_accounts,
     )?;
 
     let token_0_vault =

@@ -96,8 +96,8 @@ pub struct Withdraw<'info> {
     pub memo_program: UncheckedAccount<'info>,
 }
 
-pub fn withdraw(
-    ctx: Context<Withdraw>,
+pub fn withdraw<'info>(
+    ctx: Context<'info, Withdraw<'info>>,
     lp_token_amount: u64,
     minimum_token_0_amount: u64,
     minimum_token_1_amount: u64,
@@ -198,6 +198,7 @@ pub fn withdraw(
         token_0_amount,
         ctx.accounts.vault_0_mint.decimals,
         &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
+        ctx.remaining_accounts,
     )?;
 
     transfer_from_pool_vault_to_user(
@@ -213,6 +214,7 @@ pub fn withdraw(
         token_1_amount,
         ctx.accounts.vault_1_mint.decimals,
         &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
+        ctx.remaining_accounts,
     )?;
     pool_state.recent_epoch = Clock::get()?.epoch;
 

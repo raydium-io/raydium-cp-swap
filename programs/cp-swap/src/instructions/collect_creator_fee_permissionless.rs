@@ -105,8 +105,8 @@ pub struct CollectCreatorFeePermissionless<'info> {
     pub creator_fee_share: UncheckedAccount<'info>,
 }
 
-pub fn collect_creator_fee_permissionless(
-    ctx: Context<CollectCreatorFeePermissionless>,
+pub fn collect_creator_fee_permissionless<'info>(
+    ctx: Context<'info, CollectCreatorFeePermissionless<'info>>,
 ) -> Result<()> {
     let share_rate =
         resolve_creator_fee_share_rate(&ctx.accounts.creator_fee_share, &ctx.accounts.amm_config)?;
@@ -129,6 +129,7 @@ pub fn collect_creator_fee_permissionless(
         creator_amount_0,
         ctx.accounts.vault_0_mint.decimals,
         &[signer_seeds],
+        ctx.remaining_accounts,
     )?;
 
     transfer_from_pool_vault_to_user(
@@ -140,6 +141,7 @@ pub fn collect_creator_fee_permissionless(
         creator_amount_1,
         ctx.accounts.vault_1_mint.decimals,
         &[signer_seeds],
+        ctx.remaining_accounts,
     )?;
 
     Ok(())
