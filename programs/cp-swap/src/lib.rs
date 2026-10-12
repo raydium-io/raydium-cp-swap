@@ -157,8 +157,8 @@ pub mod raydium_cp_swap {
     /// * `amount_0_requested` - The maximum amount of token_0 to send, can be 0 to collect fees in only token_1
     /// * `amount_1_requested` - The maximum amount of token_1 to send, can be 0 to collect fees in only token_0
     ///
-    pub fn collect_protocol_fee(
-        ctx: Context<CollectProtocolFee>,
+    pub fn collect_protocol_fee<'info>(
+        ctx: Context<'info, CollectProtocolFee<'info>>,
         amount_0_requested: u64,
         amount_1_requested: u64,
     ) -> Result<()> {
@@ -173,8 +173,8 @@ pub mod raydium_cp_swap {
     /// * `amount_0_requested` - The maximum amount of token_0 to send, can be 0 to collect fees in only token_1
     /// * `amount_1_requested` - The maximum amount of token_1 to send, can be 0 to collect fees in only token_0
     ///
-    pub fn collect_fund_fee(
-        ctx: Context<CollectFundFee>,
+    pub fn collect_fund_fee<'info>(
+        ctx: Context<'info, CollectFundFee<'info>>,
         amount_0_requested: u64,
         amount_1_requested: u64,
     ) -> Result<()> {
@@ -187,7 +187,7 @@ pub mod raydium_cp_swap {
     ///
     /// * `ctx` - The context of accounts
     ///
-    pub fn collect_creator_fee(ctx: Context<CollectCreatorFee>) -> Result<()> {
+    pub fn collect_creator_fee<'info>(ctx: Context<'info, CollectCreatorFee<'info>>) -> Result<()> {
         instructions::collect_creator_fee(ctx)
     }
 
@@ -198,8 +198,8 @@ pub mod raydium_cp_swap {
     ///
     /// * `ctx` - The context of accounts
     ///
-    pub fn collect_creator_fee_permissionless(
-        ctx: Context<CollectCreatorFeePermissionless>,
+    pub fn collect_creator_fee_permissionless<'info>(
+        ctx: Context<'info, CollectCreatorFeePermissionless<'info>>,
     ) -> Result<()> {
         instructions::collect_creator_fee_permissionless(ctx)
     }
@@ -263,8 +263,8 @@ pub mod raydium_cp_swap {
     /// * `init_amount_1` - the initial amount_1 to deposit
     /// * `open_time` - the timestamp allowed for swap
     ///
-    pub fn initialize(
-        ctx: Context<Initialize>,
+    pub fn initialize<'info>(
+        ctx: Context<'info, Initialize<'info>>,
         init_amount_0: u64,
         init_amount_1: u64,
         open_time: u64,
@@ -282,8 +282,8 @@ pub mod raydium_cp_swap {
     /// * `open_time` - the timestamp allowed for swap
     /// * `creator_fee_on` - creator fee model, 0：both token0 and token1 (depends on the input), 1: only token0, 2: only token1
     ///
-    pub fn initialize_with_permission(
-        ctx: Context<InitializeWithPermission>,
+    pub fn initialize_with_permission<'info>(
+        ctx: Context<'info, InitializeWithPermission<'info>>,
         init_amount_0: u64,
         init_amount_1: u64,
         open_time: u64,
@@ -307,8 +307,8 @@ pub mod raydium_cp_swap {
     /// * `maximum_token_0_amount` -  Maximum token 0 amount to deposit, prevents excessive slippage
     /// * `maximum_token_1_amount` - Maximum token 1 amount to deposit, prevents excessive slippage
     ///
-    pub fn deposit(
-        ctx: Context<Deposit>,
+    pub fn deposit<'info>(
+        ctx: Context<'info, Deposit<'info>>,
         lp_token_amount: u64,
         maximum_token_0_amount: u64,
         maximum_token_1_amount: u64,
@@ -330,8 +330,8 @@ pub mod raydium_cp_swap {
     /// * `minimum_token_0_amount` -  Minimum amount of token 0 to receive, prevents excessive slippage
     /// * `minimum_token_1_amount` -  Minimum amount of token 1 to receive, prevents excessive slippage
     ///
-    pub fn withdraw(
-        ctx: Context<Withdraw>,
+    pub fn withdraw<'info>(
+        ctx: Context<'info, Withdraw<'info>>,
         lp_token_amount: u64,
         minimum_token_0_amount: u64,
         minimum_token_1_amount: u64,
@@ -352,8 +352,8 @@ pub mod raydium_cp_swap {
     /// * `amount_in` -  input amount to transfer, output to DESTINATION is based on the exchange rate
     /// * `minimum_amount_out` -  Minimum amount of output token, prevents excessive slippage
     ///
-    pub fn swap_base_input(
-        ctx: Context<Swap>,
+    pub fn swap_base_input<'info>(
+        ctx: Context<'info, Swap<'info>>,
         amount_in: u64,
         minimum_amount_out: u64,
     ) -> Result<()> {
@@ -368,7 +368,11 @@ pub mod raydium_cp_swap {
     /// * `max_amount_in` -  input amount prevents excessive slippage
     /// * `amount_out` -  amount of output token
     ///
-    pub fn swap_base_output(ctx: Context<Swap>, max_amount_in: u64, amount_out: u64) -> Result<()> {
+    pub fn swap_base_output<'info>(
+        ctx: Context<'info, Swap<'info>>,
+        max_amount_in: u64,
+        amount_out: u64,
+    ) -> Result<()> {
         instructions::swap_base_output(ctx, max_amount_in, amount_out)
     }
 
@@ -380,6 +384,13 @@ pub mod raydium_cp_swap {
     /// Close support token22 mint account which can create pool and send rewards while ignoring unsupported extensions.
     pub fn close_support_mint_associated(ctx: Context<CloseSupportMintAssociated>) -> Result<()> {
         instructions::close_support_mint_associated(ctx)
+    }
+
+    /// Enshrine a Token-2022 transfer-hook program. The program must be immutable (no upgrade authority, or a
+    /// non-upgradeable loader). Mints whose active hook points at it may create pools; callers pass the hook's extra
+    /// accounts as remaining accounts on every instruction that moves the mint.
+    pub fn create_support_hook_program(ctx: Context<CreateSupportHookProgram>) -> Result<()> {
+        instructions::create_support_hook_program(ctx)
     }
 
     /// Collect excess lamports, including accounts for SPL tokens owned by authority and Program PDA accounts.

@@ -84,8 +84,8 @@ pub struct Deposit<'info> {
     pub lp_mint: Box<InterfaceAccount<'info, Mint>>,
 }
 
-pub fn deposit(
-    ctx: Context<Deposit>,
+pub fn deposit<'info>(
+    ctx: Context<'info, Deposit<'info>>,
     lp_token_amount: u64,
     maximum_token_0_amount: u64,
     maximum_token_1_amount: u64,
@@ -173,6 +173,7 @@ pub fn deposit(
         },
         transfer_token_0_amount,
         ctx.accounts.vault_0_mint.decimals,
+        ctx.remaining_accounts,
     )?;
 
     transfer_from_user_to_pool_vault(
@@ -187,6 +188,7 @@ pub fn deposit(
         },
         transfer_token_1_amount,
         ctx.accounts.vault_1_mint.decimals,
+        ctx.remaining_accounts,
     )?;
 
     pool_state.lp_supply = pool_state.lp_supply.checked_add(lp_token_amount).unwrap();
