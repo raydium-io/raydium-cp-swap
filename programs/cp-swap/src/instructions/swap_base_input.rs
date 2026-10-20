@@ -72,7 +72,11 @@ pub struct Swap<'info> {
     pub observation_state: AccountLoader<'info, ObservationState>,
 }
 
-pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u64) -> Result<()> {
+pub fn swap_base_input<'info>(
+    ctx: Context<'info, Swap<'info>>,
+    amount_in: u64,
+    minimum_amount_out: u64,
+) -> Result<()> {
     let block_timestamp = solana_program::clock::Clock::get()?.unix_timestamp as u64;
     let pool_id = ctx.accounts.pool_state.key();
     let pool_state = &mut ctx.accounts.pool_state.load_mut()?;
@@ -187,6 +191,7 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
         ctx.accounts.input_token_program.to_account_info(),
         input_transfer_amount,
         ctx.accounts.input_token_mint.decimals,
+        ctx.remaining_accounts,
     )?;
 
     transfer_from_pool_vault_to_user(
@@ -198,6 +203,7 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
         output_transfer_amount,
         ctx.accounts.output_token_mint.decimals,
         &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
+        ctx.remaining_accounts,
     )?;
 
     // update the previous price to the observation

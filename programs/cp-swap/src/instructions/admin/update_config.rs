@@ -61,10 +61,7 @@ fn update_creator_fee_rate(amm_config: &mut Account<AmmConfig>, creator_fee_rate
     amm_config.creator_fee_rate = creator_fee_rate;
 }
 
-fn update_creator_fee_share_rate(
-    amm_config: &mut Account<AmmConfig>,
-    creator_fee_share_rate: u64,
-) {
+fn update_creator_fee_share_rate(amm_config: &mut Account<AmmConfig>, creator_fee_share_rate: u64) {
     assert!(creator_fee_share_rate <= FEE_RATE_DENOMINATOR_VALUE);
     amm_config.creator_fee_share_rate = creator_fee_share_rate;
 }

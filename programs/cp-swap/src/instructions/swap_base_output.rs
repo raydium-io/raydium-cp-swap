@@ -6,8 +6,8 @@ use crate::utils::token::*;
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program;
 
-pub fn swap_base_output(
-    ctx: Context<Swap>,
+pub fn swap_base_output<'info>(
+    ctx: Context<'info, Swap<'info>>,
     max_amount_in: u64,
     amount_out_received: u64,
 ) -> Result<()> {
@@ -129,6 +129,7 @@ pub fn swap_base_output(
         ctx.accounts.input_token_program.to_account_info(),
         input_transfer_amount,
         ctx.accounts.input_token_mint.decimals,
+        ctx.remaining_accounts,
     )?;
 
     transfer_from_pool_vault_to_user(
@@ -140,6 +141,7 @@ pub fn swap_base_output(
         output_transfer_amount,
         ctx.accounts.output_token_mint.decimals,
         &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
+        ctx.remaining_accounts,
     )?;
 
     // update the previous price to the observation
