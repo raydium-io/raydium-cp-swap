@@ -185,8 +185,7 @@ pub struct Initialize<'info> {
     //   - its ExtraAccountMetaList PDA, seeds ["extra-account-metas", mint] under the hook program
     //   - every extra account that list resolves to
     // Mints without a hook program need nothing here.
-    // A hook mint must also be whitelisted via the support_mint accounts above, and its
-    // ExtraAccountMetaList must be present: it is validated here and drives the initial deposit.
+    // A hook mint's ExtraAccountMetaList must be present for the initial deposit.
 }
 
 pub fn initialize<'info>(
@@ -208,15 +207,6 @@ pub fn initialize<'info>(
     {
         return err!(ErrorCode::NotSupportMint);
     }
-
-    validate_hook_mint(
-        &ctx.accounts.token_0_mint.to_account_info(),
-        ctx.remaining_accounts,
-    )?;
-    validate_hook_mint(
-        &ctx.accounts.token_1_mint.to_account_info(),
-        ctx.remaining_accounts,
-    )?;
 
     if ctx.accounts.amm_config.disable_create_pool {
         return err!(ErrorCode::NotApproved);

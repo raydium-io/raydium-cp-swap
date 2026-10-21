@@ -39,25 +39,6 @@ pub mod admin {
     pub const ID: Pubkey = pubkey!("GThUX1Atko4tqhN2NaiTazWSeFWMuiUvfFnyJyUghFMJ");
 }
 
-/// The one payer allowed to create a pool without either mint being whitelisted in
-/// `SupportMintAssociated`. This waives the whole mint-extension check, not just the
-/// TransferHook one: any Token-2022 extension is accepted, and vetting mints is left to the
-/// launchpad.
-///
-/// This is the launchpad's `authority` PDA — `PDA(["vault_auth_seed"], launchpad_program)` —
-/// i.e. graduation is the only route by which an unvetted mint reaches a pool. The
-/// permission PDA for this address already exists on chain and the migration path has been
-/// using it all along, so nothing new needs to be provisioned.
-///
-/// `validate_hook_mint` still runs, so a hook mint must remain constructible.
-pub mod hook_pool_creator {
-    use super::{pubkey, Pubkey};
-    #[cfg(feature = "devnet")]
-    pub const ID: Pubkey = pubkey!("5xqNaZXX5eUi4p5HU4oz9i5QnwRNT2y6oN7yyn4qENeq");
-    #[cfg(not(feature = "devnet"))]
-    pub const ID: Pubkey = pubkey!("WLHv2UAZm6z4KyaaELi5pjdbJh6RESMva1Rnn8pJVVh");
-}
-
 pub mod create_pool_fee_reveiver {
     use super::{pubkey, Pubkey};
     #[cfg(feature = "devnet")]
@@ -176,6 +157,10 @@ pub mod raydium_cp_swap {
     /// * `amount_0_requested` - The maximum amount of token_0 to send, can be 0 to collect fees in only token_1
     /// * `amount_1_requested` - The maximum amount of token_1 to send, can be 0 to collect fees in only token_0
     ///
+    /// # Remaining accounts
+    ///
+    /// Found by key, in any order: for each transfer hook mint, its hook program,
+    /// ExtraAccountMetaList PDA and extras. Empty if neither mint has a hook.
     pub fn collect_protocol_fee<'info>(
         ctx: Context<'info, CollectProtocolFee<'info>>,
         amount_0_requested: u64,
@@ -192,6 +177,10 @@ pub mod raydium_cp_swap {
     /// * `amount_0_requested` - The maximum amount of token_0 to send, can be 0 to collect fees in only token_1
     /// * `amount_1_requested` - The maximum amount of token_1 to send, can be 0 to collect fees in only token_0
     ///
+    /// # Remaining accounts
+    ///
+    /// Found by key, in any order: for each transfer hook mint, its hook program,
+    /// ExtraAccountMetaList PDA and extras. Empty if neither mint has a hook.
     pub fn collect_fund_fee<'info>(
         ctx: Context<'info, CollectFundFee<'info>>,
         amount_0_requested: u64,
@@ -206,6 +195,10 @@ pub mod raydium_cp_swap {
     ///
     /// * `ctx` - The context of accounts
     ///
+    /// # Remaining accounts
+    ///
+    /// Found by key, in any order: for each transfer hook mint, its hook program,
+    /// ExtraAccountMetaList PDA and extras. Empty if neither mint has a hook.
     pub fn collect_creator_fee<'info>(ctx: Context<'info, CollectCreatorFee<'info>>) -> Result<()> {
         instructions::collect_creator_fee(ctx)
     }
@@ -217,6 +210,10 @@ pub mod raydium_cp_swap {
     ///
     /// * `ctx` - The context of accounts
     ///
+    /// # Remaining accounts
+    ///
+    /// Found by key, in any order: for each transfer hook mint, its hook program,
+    /// ExtraAccountMetaList PDA and extras. Empty if neither mint has a hook.
     pub fn collect_creator_fee_permissionless<'info>(
         ctx: Context<'info, CollectCreatorFeePermissionless<'info>>,
     ) -> Result<()> {
@@ -282,6 +279,12 @@ pub mod raydium_cp_swap {
     /// * `init_amount_1` - the initial amount_1 to deposit
     /// * `open_time` - the timestamp allowed for swap
     ///
+    /// # Remaining accounts
+    ///
+    /// Found by key, in any order:
+    /// * the `SupportMintAssociated` PDA of a mint whose extensions need the whitelist
+    /// * for each transfer hook mint: its hook program, ExtraAccountMetaList PDA (required) and
+    ///   extras
     pub fn initialize<'info>(
         ctx: Context<'info, Initialize<'info>>,
         init_amount_0: u64,
@@ -301,6 +304,12 @@ pub mod raydium_cp_swap {
     /// * `open_time` - the timestamp allowed for swap
     /// * `creator_fee_on` - creator fee model, 0：both token0 and token1 (depends on the input), 1: only token0, 2: only token1
     ///
+    /// # Remaining accounts
+    ///
+    /// Found by key, in any order:
+    /// * the `SupportMintAssociated` PDA of a mint whose extensions need the whitelist
+    /// * for each transfer hook mint: its hook program, ExtraAccountMetaList PDA (required) and
+    ///   extras
     pub fn initialize_with_permission<'info>(
         ctx: Context<'info, InitializeWithPermission<'info>>,
         init_amount_0: u64,
@@ -326,6 +335,10 @@ pub mod raydium_cp_swap {
     /// * `maximum_token_0_amount` -  Maximum token 0 amount to deposit, prevents excessive slippage
     /// * `maximum_token_1_amount` - Maximum token 1 amount to deposit, prevents excessive slippage
     ///
+    /// # Remaining accounts
+    ///
+    /// Found by key, in any order: for each transfer hook mint, its hook program,
+    /// ExtraAccountMetaList PDA and extras. Empty if neither mint has a hook.
     pub fn deposit<'info>(
         ctx: Context<'info, Deposit<'info>>,
         lp_token_amount: u64,
@@ -349,6 +362,10 @@ pub mod raydium_cp_swap {
     /// * `minimum_token_0_amount` -  Minimum amount of token 0 to receive, prevents excessive slippage
     /// * `minimum_token_1_amount` -  Minimum amount of token 1 to receive, prevents excessive slippage
     ///
+    /// # Remaining accounts
+    ///
+    /// Found by key, in any order: for each transfer hook mint, its hook program,
+    /// ExtraAccountMetaList PDA and extras. Empty if neither mint has a hook.
     pub fn withdraw<'info>(
         ctx: Context<'info, Withdraw<'info>>,
         lp_token_amount: u64,
@@ -371,6 +388,10 @@ pub mod raydium_cp_swap {
     /// * `amount_in` -  input amount to transfer, output to DESTINATION is based on the exchange rate
     /// * `minimum_amount_out` -  Minimum amount of output token, prevents excessive slippage
     ///
+    /// # Remaining accounts
+    ///
+    /// Found by key, in any order: for each transfer hook mint, its hook program,
+    /// ExtraAccountMetaList PDA and extras. Empty if neither mint has a hook.
     pub fn swap_base_input<'info>(
         ctx: Context<'info, Swap<'info>>,
         amount_in: u64,
@@ -387,6 +408,10 @@ pub mod raydium_cp_swap {
     /// * `max_amount_in` -  input amount prevents excessive slippage
     /// * `amount_out` -  amount of output token
     ///
+    /// # Remaining accounts
+    ///
+    /// Found by key, in any order: for each transfer hook mint, its hook program,
+    /// ExtraAccountMetaList PDA and extras. Empty if neither mint has a hook.
     pub fn swap_base_output<'info>(
         ctx: Context<'info, Swap<'info>>,
         max_amount_in: u64,
@@ -406,6 +431,10 @@ pub mod raydium_cp_swap {
     }
 
     /// Collect excess lamports, including accounts for SPL tokens owned by authority and Program PDA accounts.
+    ///
+    /// # Remaining accounts
+    ///
+    /// `[writable]` source lamport accounts: vaults, LP mints or PDA accounts.
     pub fn collect_excess_lamports<'info>(
         ctx: Context<'info, CollectExcessLamports<'info>>,
     ) -> Result<()> {

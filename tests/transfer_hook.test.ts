@@ -30,8 +30,6 @@ import {
   installStubHookProgram,
   createExtraAccountMetaList,
   metaLiteral,
-  metaSeededByAmount,
-  metaSeededByAccountData,
   metaReadFromAccountData,
   getAuthAddress,
   waitUntilPoolOpen,
@@ -430,18 +428,11 @@ describe("transfer hook mint admission", () => {
     );
   }
 
-  it("admits an inert hook extension but not a dormant one without the whitelist", async () => {
+  it("admits dormant and inert hook extensions without the whitelist", async () => {
     // Dormant: no program yet, but an authority that can point the mint at any program with
-    // `UpdateTransferHook` once the pool exists. It must not get in through `initialize`.
+    // `UpdateTransferHook` once the pool exists.
     const dormant = await createMintWithHookExtension(null);
-    let err: any;
-    try {
-      await initializeWith(dormant, 30);
-    } catch (e) {
-      err = e;
-    }
-    assert.isDefined(err, "a dormant hook mint got in without the whitelist");
-    assert.include(JSON.stringify(err), "NotSupportMint", `unexpected: ${err}`);
+    await initializeWith(dormant, 30);
 
     // token-2022 refuses to initialize the extension with neither field set; an inert one is
     // made by dropping the authority afterwards.
@@ -463,7 +454,7 @@ describe("transfer hook mint admission", () => {
     await initializeWith(inert, 37);
   });
 
-  it("rejects a mint that really points at a hook program", async () => {
+  it("creates a pool for a hook mint without the whitelist once its list exists", async () => {
     const mint = await createMintWithHookExtension(STUB_ID);
     let err: any;
     try {
@@ -471,11 +462,20 @@ describe("transfer hook mint admission", () => {
     } catch (e) {
       err = e;
     }
-    assert.isDefined(
-      err,
-      "a hook mint created a pool without being whitelisted"
+    assert.isDefined(err, "a hook mint created a pool without its list");
+    assert.include(
+      JSON.stringify(err),
+      "NoExtraAccountsForTransferHook",
+      `unexpected: ${err}`
     );
-    assert.include(JSON.stringify(err), "NotSupportMint", `unexpected: ${err}`);
+
+    const list = await createExtraAccountMetaList(
+      connection,
+      owner,
+      mint,
+      STUB_ID
+    );
+    await initializeWith(mint, 31, [STUB_ID, list]);
   });
 
   it("creates a pool for a whitelisted hook mint and moves its tokens", async () => {
@@ -509,99 +509,6 @@ describe("transfer hook mint admission", () => {
     const vault = hookIsToken0 ? poolState.token0Vault : poolState.token1Vault;
     const balance = await connection.getTokenAccountBalance(vault);
     assert.equal(balance.value.amount, "1000");
-  });
-
-  it("rejects a list with more extras than a transaction can carry", async () => {
-    const mint = await createMintWithHookExtension(STUB_ID);
-    const supportMint = await whitelist(mint);
-    // MAX_HOOK_EXTRA_ACCOUNTS is 6; seven literal addresses is one too many.
-    const list = await createExtraAccountMetaList(
-      connection,
-      owner,
-      mint,
-      STUB_ID,
-      Array.from({ length: 7 }, () => metaLiteral(Keypair.generate().publicKey))
-    );
-    let err: any;
-    try {
-      await initializeWith(mint, 33, [supportMint, STUB_ID, list]);
-    } catch (e) {
-      err = e;
-    }
-    assert.isDefined(err, "a list of 7 extras was accepted");
-    assert.include(
-      JSON.stringify(err),
-      "HookExtraAccountsTooMany",
-      `unexpected: ${err}`
-    );
-  });
-
-  it("rejects a list whose address depends on the transfer amount", async () => {
-    // The only thing in the Execute instruction data is the amount, and on an AMM at least
-    // one leg's amount is computed on chain - so this mint's account list can never be
-    // assembled off chain, and the pool must not be allowed to exist.
-    const mint = await createMintWithHookExtension(STUB_ID);
-    const supportMint = await whitelist(mint);
-    const list = await createExtraAccountMetaList(
-      connection,
-      owner,
-      mint,
-      STUB_ID,
-      [metaSeededByAmount()]
-    );
-    let err: any;
-    try {
-      await initializeWith(mint, 34, [supportMint, STUB_ID, list]);
-    } catch (e) {
-      err = e;
-    }
-    assert.isDefined(err, "an amount-seeded extra account was accepted");
-    assert.include(
-      JSON.stringify(err),
-      "HookExtraAccountUsesInstructionData",
-      `unexpected: ${err}`
-    );
-  });
-
-  it("rejects a list whose address depends on token account data the transfer changes", async () => {
-    // token-2022 resolves the list after moving the balances (and setting the `transferring`
-    // flags), while the AMM resolves it before the CPI - so anything past a token account's
-    // `mint` and `owner` reads differently on the two sides and the transfer can never match.
-    const cases: [string, Buffer, number][] = [
-      [
-        "a PDA seeded by the source balance",
-        metaSeededByAccountData(0, 64, 8),
-        39,
-      ],
-      [
-        "an address read past the destination owner",
-        metaReadFromAccountData(2, 64),
-        40,
-      ],
-    ];
-    for (const [what, meta, configIndex] of cases) {
-      const mint = await createMintWithHookExtension(STUB_ID);
-      const supportMint = await whitelist(mint);
-      const list = await createExtraAccountMetaList(
-        connection,
-        owner,
-        mint,
-        STUB_ID,
-        [meta]
-      );
-      let err: any;
-      try {
-        await initializeWith(mint, configIndex, [supportMint, STUB_ID, list]);
-      } catch (e) {
-        err = e;
-      }
-      assert.isDefined(err, `${what} was accepted`);
-      assert.include(
-        JSON.stringify(err),
-        "HookExtraAccountUsesTransferredData",
-        `${what}: unexpected: ${err}`
-      );
-    }
   });
 
   it("accepts a list that reads the destination owner", async () => {
@@ -809,8 +716,7 @@ describe("transfer hook mint admission", () => {
   });
 
   it("creates a hook pool with permission and collects its creator fee both ways", async () => {
-    // Also the only coverage of `initialize_with_permission` for a hook mint: the payer here
-    // is not the launchpad, so the whitelist still applies.
+    // Also the only coverage of `initialize_with_permission` for a hook mint.
     // The hook names the pool, so this also proves both collects release their borrow on it
     // before the transfer CPI.
     const { pair, poolAddress, hookAccounts } = await createHookPool(
