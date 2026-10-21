@@ -186,9 +186,7 @@ pub struct InitializeWithPermission<'info> {
     //   - its ExtraAccountMetaList PDA, seeds ["extra-account-metas", mint] under the hook program
     //   - every extra account that list resolves to
     // Mints without a hook program need nothing here.
-    // A hook mint must also be whitelisted via the support_mint accounts above (unless the
-    // payer is `hook_pool_creator`), and its ExtraAccountMetaList must be present: it is
-    // validated here and drives the initial deposit.
+    // A hook mint's ExtraAccountMetaList must be present for the initial deposit.
 }
 
 impl<'info> InitializeWithPermission<'info> {

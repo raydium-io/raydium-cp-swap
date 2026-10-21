@@ -185,8 +185,7 @@ pub struct Initialize<'info> {
     //   - its ExtraAccountMetaList PDA, seeds ["extra-account-metas", mint] under the hook program
     //   - every extra account that list resolves to
     // Mints without a hook program need nothing here.
-    // A hook mint must also be whitelisted via the support_mint accounts above, and its
-    // ExtraAccountMetaList must be present: it is validated here and drives the initial deposit.
+    // A hook mint's ExtraAccountMetaList must be present for the initial deposit.
 }
 
 impl<'info> Initialize<'info> {
@@ -278,31 +277,15 @@ pub(crate) fn initialize_pool(
     enable_creator_fee: bool,
     creator_fee_on: CreatorFeeOn,
 ) -> Result<()> {
-    let bypass_mint_whitelist = accounts.payer.key() == crate::hook_pool_creator::ID;
-    let mint0_ok = bypass_mint_whitelist
-        || support_mint_associated_is_initialized(
-            accounts.remaining_accounts,
-            accounts.token_0_mint,
-        )?;
-    let mint1_ok = bypass_mint_whitelist
-        || support_mint_associated_is_initialized(
-            accounts.remaining_accounts,
-            accounts.token_1_mint,
-        )?;
-    if !(is_supported_mint(accounts.token_0_mint, mint0_ok)?
-        && is_supported_mint(accounts.token_1_mint, mint1_ok)?)
+    let mint0_associated_is_initialized =
+        support_mint_associated_is_initialized(accounts.remaining_accounts, accounts.token_0_mint)?;
+    let mint1_associated_is_initialized =
+        support_mint_associated_is_initialized(accounts.remaining_accounts, accounts.token_1_mint)?;
+    if !(is_supported_mint(accounts.token_0_mint, mint0_associated_is_initialized)?
+        && is_supported_mint(accounts.token_1_mint, mint1_associated_is_initialized)?)
     {
         return err!(ErrorCode::NotSupportMint);
     }
-    // The bypass admits any extension set; hook constructibility is still enforced.
-    validate_hook_mint(
-        &accounts.token_0_mint.to_account_info(),
-        accounts.remaining_accounts,
-    )?;
-    validate_hook_mint(
-        &accounts.token_1_mint.to_account_info(),
-        accounts.remaining_accounts,
-    )?;
 
     if accounts.amm_config.disable_create_pool {
         return err!(ErrorCode::NotApproved);

@@ -165,6 +165,15 @@ pub struct InitializeV2<'info> {
     //     bump
     // )]
     // pub support_mint1_associated: Account<'info, SupportMintAssociated>,
+
+    // remaining account: transfer hook
+    // For each Token-2022 mint that points at a TransferHook program, in any order since
+    // accounts are located by key:
+    //   - the hook program
+    //   - its ExtraAccountMetaList PDA, seeds ["extra-account-metas", mint] under the hook program
+    //   - every extra account that list resolves to
+    // Mints without a hook program need nothing here.
+    // A hook mint's ExtraAccountMetaList must be present for the initial deposit.
 }
 
 impl<'info> InitializeV2<'info> {
