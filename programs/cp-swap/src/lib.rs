@@ -263,13 +263,37 @@ pub mod raydium_cp_swap {
     /// * `init_amount_1` - the initial amount_1 to deposit
     /// * `open_time` - the timestamp allowed for swap
     ///
-    pub fn initialize(
-        ctx: Context<Initialize>,
+    pub fn initialize<'info>(
+        ctx: Context<'info, Initialize<'info>>,
         init_amount_0: u64,
         init_amount_1: u64,
         open_time: u64,
     ) -> Result<()> {
         instructions::initialize(ctx, init_amount_0, init_amount_1, open_time)
+    }
+
+    /// Creates a pool for the given token pair with creator fee settings chosen by the creator.
+    ///
+    /// Same flow as `initialize` (and the same accounts minus the unused `rent` sysvar);
+    /// with `creator_fee_on` set, swaps charge `amm_config.creator_fee_rate` to the pool
+    /// creator on the selected side.
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx`- The context of accounts
+    /// * `init_amount_0` - the initial amount_0 to deposit
+    /// * `init_amount_1` - the initial amount_1 to deposit
+    /// * `open_time` - the timestamp allowed for swap
+    /// * `creator_fee_on` - `None` disables the creator fee; otherwise the creator fee model, 0：both token0 and token1 (depends on the input), 1: only token0, 2: only token1
+    ///
+    pub fn initialize_v2<'info>(
+        ctx: Context<'info, InitializeV2<'info>>,
+        init_amount_0: u64,
+        init_amount_1: u64,
+        open_time: u64,
+        creator_fee_on: Option<CreatorFeeOn>,
+    ) -> Result<()> {
+        instructions::initialize_v2(ctx, init_amount_0, init_amount_1, open_time, creator_fee_on)
     }
 
     /// Create a pool with permission
@@ -282,8 +306,8 @@ pub mod raydium_cp_swap {
     /// * `open_time` - the timestamp allowed for swap
     /// * `creator_fee_on` - creator fee model, 0：both token0 and token1 (depends on the input), 1: only token0, 2: only token1
     ///
-    pub fn initialize_with_permission(
-        ctx: Context<InitializeWithPermission>,
+    pub fn initialize_with_permission<'info>(
+        ctx: Context<'info, InitializeWithPermission<'info>>,
         init_amount_0: u64,
         init_amount_1: u64,
         open_time: u64,

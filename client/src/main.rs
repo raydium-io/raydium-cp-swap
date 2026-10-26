@@ -6,6 +6,7 @@ use anyhow::{format_err, Result};
 use arrayref::array_ref;
 use clap::Parser;
 use configparser::ini::Ini;
+use raydium_cp_swap::CreatorFeeOn;
 use solana_client::{rpc_client::RpcClient, rpc_config::RpcTransactionConfig};
 use solana_sdk::{
     pubkey::Pubkey,
@@ -99,6 +100,22 @@ pub enum RaydiumCpCommands {
         #[clap(short, long, action)]
         random_pool: bool,
     },
+    /// Same as `initialize-pool` but through `initialize_v2`, which lets the creator
+    /// choose the pool's creator fee settings.
+    InitializePoolV2 {
+        mint0: Pubkey,
+        mint1: Pubkey,
+        init_amount_0: u64,
+        init_amount_1: u64,
+        #[arg(short, long, default_value_t = 0)]
+        open_time: u64,
+        #[clap(short, long, action)]
+        random_pool: bool,
+        /// enable the creator fee with this model: 0 both tokens (taken on the input side),
+        /// 1 only token0, 2 only token1; omit it to create the pool without a creator fee
+        #[arg(short, long)]
+        creator_fee_on: Option<u8>,
+    },
     Deposit {
         pool_id: Pubkey,
         user_token_0: Pubkey,
@@ -131,6 +148,76 @@ pub enum RaydiumCpCommands {
     },
 }
 
+fn initialize_pool(
+    pool_config: &ClientConfig,
+    rpc_client: &RpcClient,
+    payer: &Keypair,
+    mint0: Pubkey,
+    mint1: Pubkey,
+    init_amount_0: u64,
+    init_amount_1: u64,
+    open_time: u64,
+    random_pool: bool,
+    v2_args: Option<InitializeV2Args>,
+) -> Result<()> {
+    let (mint0, mint1, init_amount_0, init_amount_1) = if mint0 > mint1 {
+        (mint1, mint0, init_amount_1, init_amount_0)
+    } else {
+        (mint0, mint1, init_amount_0, init_amount_1)
+    };
+    let load_pubkeys = vec![mint0, mint1];
+    let rsps = rpc_client.get_multiple_accounts(&load_pubkeys)?;
+    let token_0_program = rsps[0].clone().unwrap().owner;
+    let token_1_program = rsps[1].clone().unwrap().owner;
+
+    let mut signers = vec![payer];
+
+    let random_pool_keypair = Keypair::new();
+    let random_pool_id = if random_pool {
+        let random_pool_id = random_pool_keypair.pubkey();
+        println!("random_pool_id:{}", random_pool_id);
+        signers.push(&random_pool_keypair);
+        Some(random_pool_id)
+    } else {
+        None
+    };
+
+    let initialize_pool_instr = initialize_pool_instr(
+        &pool_config,
+        mint0,
+        mint1,
+        token_0_program,
+        token_1_program,
+        spl_associated_token_account::address::get_associated_token_address_with_program_id(
+            &payer.pubkey(),
+            &mint0,
+            &token_0_program,
+        ),
+        spl_associated_token_account::address::get_associated_token_address_with_program_id(
+            &payer.pubkey(),
+            &mint1,
+            &token_1_program,
+        ),
+        raydium_cp_swap::create_pool_fee_reveiver::ID,
+        random_pool_id,
+        init_amount_0,
+        init_amount_1,
+        open_time,
+        v2_args,
+    )?;
+
+    let recent_hash = rpc_client.get_latest_blockhash()?;
+    let txn = Transaction::new_signed_with_payer(
+        &initialize_pool_instr,
+        Some(&payer.pubkey()),
+        &signers,
+        recent_hash,
+    );
+    let signature = send_txn(&rpc_client, &txn, true)?;
+    println!("{}", signature);
+    Ok(())
+}
+
 fn main() -> Result<()> {
     let client_config = "client_config.ini";
     let pool_config = load_cfg(&client_config.to_string()).unwrap();
@@ -156,60 +243,52 @@ fn main() -> Result<()> {
             open_time,
             random_pool,
         } => {
-            let (mint0, mint1, init_amount_0, init_amount_1) = if mint0 > mint1 {
-                (mint1, mint0, init_amount_1, init_amount_0)
-            } else {
-                (mint0, mint1, init_amount_0, init_amount_1)
-            };
-            let load_pubkeys = vec![mint0, mint1];
-            let rsps = rpc_client.get_multiple_accounts(&load_pubkeys)?;
-            let token_0_program = rsps[0].clone().unwrap().owner;
-            let token_1_program = rsps[1].clone().unwrap().owner;
-
-            let mut signers = vec![&payer];
-
-            let random_pool_keypair = Keypair::new();
-            let random_pool_id = if random_pool {
-                let random_pool_id = random_pool_keypair.pubkey();
-                println!("random_pool_id:{}", random_pool_id);
-                signers.push(&random_pool_keypair);
-                Some(random_pool_id)
-            } else {
-                None
-            };
-
-            let initialize_pool_instr = initialize_pool_instr(
+            initialize_pool(
                 &pool_config,
+                &rpc_client,
+                &payer,
                 mint0,
                 mint1,
-                token_0_program,
-                token_1_program,
-                spl_associated_token_account::address::get_associated_token_address_with_program_id(
-                    &payer.pubkey(),
-                    &mint0,
-                    &token_0_program,
-                ),
-                spl_associated_token_account::address::get_associated_token_address_with_program_id(
-                    &payer.pubkey(),
-                    &mint1,
-                    &token_1_program,
-                ),
-                raydium_cp_swap::create_pool_fee_reveiver::ID,
-                random_pool_id,
                 init_amount_0,
                 init_amount_1,
                 open_time,
+                random_pool,
+                None,
             )?;
-
-            let recent_hash = rpc_client.get_latest_blockhash()?;
-            let txn = Transaction::new_signed_with_payer(
-                &initialize_pool_instr,
-                Some(&payer.pubkey()),
-                &signers,
-                recent_hash,
-            );
-            let signature = send_txn(&rpc_client, &txn, true)?;
-            println!("{}", signature);
+        }
+        RaydiumCpCommands::InitializePoolV2 {
+            mint0,
+            mint1,
+            init_amount_0,
+            init_amount_1,
+            open_time,
+            random_pool,
+            creator_fee_on,
+        } => {
+            let creator_fee_on = match creator_fee_on {
+                None => None,
+                Some(0) => Some(CreatorFeeOn::BothToken),
+                Some(1) => Some(CreatorFeeOn::OnlyToken0),
+                Some(2) => Some(CreatorFeeOn::OnlyToken1),
+                Some(other) => {
+                    return Err(format_err!(
+                        "invalid creator_fee_on {}, expected 0 (both), 1 (only token0) or 2 (only token1)",
+                        other
+                    ))
+                }
+            };
+            initialize_pool(
+                &pool_config,
+                &rpc_client,
+                &payer,
+                mint0,
+                mint1,
+                init_amount_0,
+                init_amount_1,
+                open_time,
+                random_pool,
+                Some(InitializeV2Args { creator_fee_on }),
+            )?;
         }
         RaydiumCpCommands::Deposit {
             pool_id,

@@ -370,6 +370,27 @@ pub fn handle_program_instruction(
             }
             println!("{:#?}", Initialize::from(ix));
         }
+        instruction::InitializeV2::DISCRIMINATOR => {
+            let ix = decode_instruction::<instruction::InitializeV2>(&mut ix_data).unwrap();
+            #[derive(Debug)]
+            pub struct InitializeV2 {
+                pub init_amount_0: u64,
+                pub init_amount_1: u64,
+                pub open_time: u64,
+                pub creator_fee_on: Option<CreatorFeeOn>,
+            }
+            impl From<instruction::InitializeV2> for InitializeV2 {
+                fn from(instr: instruction::InitializeV2) -> InitializeV2 {
+                    InitializeV2 {
+                        init_amount_0: instr.init_amount_0,
+                        init_amount_1: instr.init_amount_1,
+                        open_time: instr.open_time,
+                        creator_fee_on: instr.creator_fee_on,
+                    }
+                }
+            }
+            println!("{:#?}", InitializeV2::from(ix));
+        }
         instruction::UpdatePoolStatus::DISCRIMINATOR => {
             let ix = decode_instruction::<instruction::UpdatePoolStatus>(&mut ix_data).unwrap();
             #[derive(Debug)]
