@@ -355,6 +355,109 @@ export async function initialize(
   return { poolAddress, poolState };
 }
 
+/// `initialize_v2` creates the same pool as `initialize` (its accounts minus the unused
+/// rent sysvar) but lets the creator choose the creator fee settings: `null` stores the
+/// pool without a creator fee, otherwise the pool charges the config's `creator_fee_rate`
+/// to its creator on the side picked by `creatorFeeOn`.
+export async function initializeV2(
+  program: Program<RaydiumCpSwap>,
+  creator: Signer,
+  configAddress: PublicKey,
+  token0: PublicKey,
+  token0Program: PublicKey,
+  token1: PublicKey,
+  token1Program: PublicKey,
+  creatorFeeOn:
+    | { bothToken: {} }
+    | { onlyToken0: {} }
+    | { onlyToken1: {} }
+    | null = null,
+  confirmOptions?: ConfirmOptions,
+  initAmount: { initAmount0: BN; initAmount1: BN } = {
+    initAmount0: new BN(10000000000),
+    initAmount1: new BN(20000000000),
+  },
+  createPoolFee = new PublicKey("DNXgeM9EiiaAbaWvwjHj9fQQLAX5ZsfHyvmYUNRAdNC8")
+) {
+  const [auth] = await getAuthAddress(program.programId);
+  const [poolAddress] = await getPoolAddress(
+    configAddress,
+    token0,
+    token1,
+    program.programId
+  );
+  const [lpMintAddress] = await getPoolLpMintAddress(
+    poolAddress,
+    program.programId
+  );
+  const [vault0] = await getPoolVaultAddress(
+    poolAddress,
+    token0,
+    program.programId
+  );
+  const [vault1] = await getPoolVaultAddress(
+    poolAddress,
+    token1,
+    program.programId
+  );
+  const [creatorLpTokenAddress] = await PublicKey.findProgramAddress(
+    [
+      creator.publicKey.toBuffer(),
+      TOKEN_PROGRAM_ID.toBuffer(),
+      lpMintAddress.toBuffer(),
+    ],
+    ASSOCIATED_PROGRAM_ID
+  );
+  const [observationAddress] = await getOrcleAccountAddress(
+    poolAddress,
+    program.programId
+  );
+  const creatorToken0 = getAssociatedTokenAddressSync(
+    token0,
+    creator.publicKey,
+    false,
+    token0Program
+  );
+  const creatorToken1 = getAssociatedTokenAddressSync(
+    token1,
+    creator.publicKey,
+    false,
+    token1Program
+  );
+
+  await program.methods
+    .initializeV2(
+      initAmount.initAmount0,
+      initAmount.initAmount1,
+      new BN(0),
+      creatorFeeOn as any
+    )
+    .accountsPartial({
+      creator: creator.publicKey,
+      ammConfig: configAddress,
+      authority: auth,
+      poolState: poolAddress,
+      token0Mint: token0,
+      token1Mint: token1,
+      lpMint: lpMintAddress,
+      creatorToken0,
+      creatorToken1,
+      creatorLpToken: creatorLpTokenAddress,
+      token0Vault: vault0,
+      token1Vault: vault1,
+      createPoolFee,
+      observationState: observationAddress,
+      tokenProgram: TOKEN_PROGRAM_ID,
+      token0Program: token0Program,
+      token1Program: token1Program,
+      systemProgram: SystemProgram.programId,
+    })
+    .rpc(confirmOptions);
+
+  const poolState = await program.account.poolState.fetch(poolAddress);
+  return { poolAddress, poolState };
+}
+
 export async function deposit(
   program: Program<RaydiumCpSwap>,
   owner: Signer,

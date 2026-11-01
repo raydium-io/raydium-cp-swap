@@ -11,11 +11,16 @@ use raydium_cp_swap::accounts as raydium_cp_accounts;
 use raydium_cp_swap::instruction as raydium_cp_instructions;
 use raydium_cp_swap::{
     states::{AMM_CONFIG_SEED, OBSERVATION_SEED, POOL_LP_MINT_SEED, POOL_SEED, POOL_VAULT_SEED},
-    AUTH_SEED,
+    CreatorFeeOn, AUTH_SEED,
 };
 use std::rc::Rc;
 
 use super::super::{read_keypair_file, ClientConfig};
+
+#[derive(Clone, Debug)]
+pub struct InitializeV2Args {
+    pub creator_fee_on: Option<CreatorFeeOn>,
+}
 
 pub fn initialize_pool_instr(
     config: &ClientConfig,
@@ -30,6 +35,7 @@ pub fn initialize_pool_instr(
     init_amount_0: u64,
     init_amount_1: u64,
     open_time: u64,
+    v2_args: Option<InitializeV2Args>,
 ) -> Result<Vec<Instruction>> {
     let payer = read_keypair_file(&config.payer_path)?;
     let url = Cluster::Custom(config.http_url.clone(), config.ws_url.clone());
@@ -90,39 +96,71 @@ pub fn initialize_pool_instr(
         &program.id(),
     );
 
-    let mut instructions = program
-        .request()
-        .accounts(raydium_cp_accounts::Initialize {
-            creator: program.payer(),
-            amm_config: amm_config_key,
-            authority,
-            pool_state: pool_account_key,
-            token_0_mint,
-            token_1_mint,
-            lp_mint: lp_mint_key,
-            creator_token_0: user_token_0_account,
-            creator_token_1: user_token_1_account,
-            creator_lp_token: spl_associated_token_account::address::get_associated_token_address(
-                &program.payer(),
-                &lp_mint_key,
-            ),
-            token_0_vault,
-            token_1_vault,
-            create_pool_fee,
-            observation_state: observation_key,
-            token_program: spl_token::id(),
-            token_0_program,
-            token_1_program,
-            associated_token_program: spl_associated_token_account::program::ID,
-            system_program: system_program::id(),
-            rent: sysvar::rent::id(),
-        })
-        .args(raydium_cp_instructions::Initialize {
-            init_amount_0,
-            init_amount_1,
-            open_time,
-        })
-        .instructions();
+    let creator_lp_token = spl_associated_token_account::address::get_associated_token_address(
+        &program.payer(),
+        &lp_mint_key,
+    );
+    let request = match v2_args {
+        Some(v2_args) => program
+            .request()
+            .accounts(raydium_cp_accounts::InitializeV2 {
+                creator: program.payer(),
+                amm_config: amm_config_key,
+                authority,
+                pool_state: pool_account_key,
+                token_0_mint,
+                token_1_mint,
+                lp_mint: lp_mint_key,
+                creator_token_0: user_token_0_account,
+                creator_token_1: user_token_1_account,
+                creator_lp_token,
+                token_0_vault,
+                token_1_vault,
+                create_pool_fee,
+                observation_state: observation_key,
+                token_program: spl_token::id(),
+                token_0_program,
+                token_1_program,
+                associated_token_program: spl_associated_token_account::program::ID,
+                system_program: system_program::id(),
+            })
+            .args(raydium_cp_instructions::InitializeV2 {
+                init_amount_0,
+                init_amount_1,
+                open_time,
+                creator_fee_on: v2_args.creator_fee_on,
+            }),
+        None => program
+            .request()
+            .accounts(raydium_cp_accounts::Initialize {
+                creator: program.payer(),
+                amm_config: amm_config_key,
+                authority,
+                pool_state: pool_account_key,
+                token_0_mint,
+                token_1_mint,
+                lp_mint: lp_mint_key,
+                creator_token_0: user_token_0_account,
+                creator_token_1: user_token_1_account,
+                creator_lp_token,
+                token_0_vault,
+                token_1_vault,
+                create_pool_fee,
+                observation_state: observation_key,
+                token_program: spl_token::id(),
+                token_0_program,
+                token_1_program,
+                associated_token_program: spl_associated_token_account::program::ID,
+                system_program: system_program::id(),
+                rent: sysvar::rent::id(),
+            })
+            .args(raydium_cp_instructions::Initialize {
+                init_amount_0,
+                init_amount_1,
+                open_time,
+            }),
+    };
+    let mut instructions = request.instructions();
     if random_pool_id.is_some() {
         // update account signer as true for random pool
         for account in instructions[0].accounts.iter_mut() {

@@ -179,27 +179,106 @@ pub struct Initialize<'info> {
     // pub support_mint1_associated: Account<'info, SupportMintAssociated>,
 }
 
-pub fn initialize(
-    ctx: Context<Initialize>,
+impl<'info> Initialize<'info> {
+    pub(crate) fn pool_accounts<'a>(
+        &'a self,
+        remaining_accounts: &'a [AccountInfo<'info>],
+        bumps: &InitializeBumps,
+    ) -> InitializePoolAccounts<'a, 'info> {
+        InitializePoolAccounts {
+            payer: &self.creator,
+            pool_creator: self.creator.key(),
+            amm_config: &self.amm_config,
+            authority: &self.authority,
+            pool_state: &self.pool_state,
+            token_0_mint: &self.token_0_mint,
+            token_1_mint: &self.token_1_mint,
+            lp_mint: &self.lp_mint,
+            payer_token_0: &self.creator_token_0,
+            payer_token_1: &self.creator_token_1,
+            payer_lp_token: &self.creator_lp_token,
+            token_0_vault: &self.token_0_vault,
+            token_1_vault: &self.token_1_vault,
+            create_pool_fee: &self.create_pool_fee,
+            observation_state: &self.observation_state,
+            token_program: &self.token_program,
+            token_0_program: &self.token_0_program,
+            token_1_program: &self.token_1_program,
+            system_program: &self.system_program,
+            remaining_accounts,
+            authority_bump: bumps.authority,
+            token_0_vault_bump: bumps.token_0_vault,
+            token_1_vault_bump: bumps.token_1_vault,
+        }
+    }
+}
+
+pub fn initialize<'info>(
+    ctx: Context<'info, Initialize<'info>>,
+    init_amount_0: u64,
+    init_amount_1: u64,
+    open_time: u64,
+) -> Result<()> {
+    initialize_pool(
+        ctx.accounts
+            .pool_accounts(ctx.remaining_accounts, &ctx.bumps),
+        init_amount_0,
+        init_amount_1,
+        open_time,
+        false,
+        CreatorFeeOn::BothToken,
+    )
+}
+
+pub(crate) struct InitializePoolAccounts<'a, 'info> {
+    /// Pays for every created account and the create-pool fee, and supplies the initial
+    /// liquidity from `payer_token_0` / `payer_token_1`; receives the lp tokens.
+    pub payer: &'a Signer<'info>,
+    /// Stored as `PoolState::pool_creator`, the receiver of the creator fee.
+    pub pool_creator: Pubkey,
+    pub amm_config: &'a Account<'info, AmmConfig>,
+    pub authority: &'a UncheckedAccount<'info>,
+    pub pool_state: &'a UncheckedAccount<'info>,
+    pub token_0_mint: &'a InterfaceAccount<'info, Mint>,
+    pub token_1_mint: &'a InterfaceAccount<'info, Mint>,
+    pub lp_mint: &'a InterfaceAccount<'info, Mint>,
+    pub payer_token_0: &'a InterfaceAccount<'info, TokenAccount>,
+    pub payer_token_1: &'a InterfaceAccount<'info, TokenAccount>,
+    pub payer_lp_token: &'a InterfaceAccount<'info, TokenAccount>,
+    pub token_0_vault: &'a UncheckedAccount<'info>,
+    pub token_1_vault: &'a UncheckedAccount<'info>,
+    pub create_pool_fee: &'a InterfaceAccount<'info, TokenAccount>,
+    pub observation_state: &'a AccountLoader<'info, ObservationState>,
+    pub token_program: &'a Program<'info, Token>,
+    pub token_0_program: &'a Interface<'info, TokenInterface>,
+    pub token_1_program: &'a Interface<'info, TokenInterface>,
+    pub system_program: &'a Program<'info, System>,
+    /// Optional `SupportMintAssociated` accounts for token-2022 mints.
+    pub remaining_accounts: &'a [AccountInfo<'info>],
+    pub authority_bump: u8,
+    pub token_0_vault_bump: u8,
+    pub token_1_vault_bump: u8,
+}
+
+pub(crate) fn initialize_pool(
+    accounts: InitializePoolAccounts,
     init_amount_0: u64,
     init_amount_1: u64,
     mut open_time: u64,
+    enable_creator_fee: bool,
+    creator_fee_on: CreatorFeeOn,
 ) -> Result<()> {
-    let mint0_associated_is_initialized = support_mint_associated_is_initialized(
-        &ctx.remaining_accounts,
-        &ctx.accounts.token_0_mint,
-    )?;
-    let mint1_associated_is_initialized = support_mint_associated_is_initialized(
-        &ctx.remaining_accounts,
-        &ctx.accounts.token_1_mint,
-    )?;
-    if !(is_supported_mint(&ctx.accounts.token_0_mint, mint0_associated_is_initialized).unwrap()
-        && is_supported_mint(&ctx.accounts.token_1_mint, mint1_associated_is_initialized).unwrap())
+    let mint0_associated_is_initialized =
+        support_mint_associated_is_initialized(accounts.remaining_accounts, accounts.token_0_mint)?;
+    let mint1_associated_is_initialized =
+        support_mint_associated_is_initialized(accounts.remaining_accounts, accounts.token_1_mint)?;
+    if !(is_supported_mint(accounts.token_0_mint, mint0_associated_is_initialized).unwrap()
+        && is_supported_mint(accounts.token_1_mint, mint1_associated_is_initialized).unwrap())
     {
         return err!(ErrorCode::NotSupportMint);
     }
 
-    if ctx.accounts.amm_config.disable_create_pool {
+    if accounts.amm_config.disable_create_pool {
         return err!(ErrorCode::NotApproved);
     }
     let block_timestamp = clock::Clock::get()?.unix_timestamp as u64;
@@ -208,71 +287,71 @@ pub fn initialize(
     }
     // due to stack/heap limitations, we have to create redundant new accounts ourselves.
     create_token_account(
-        &ctx.accounts.authority.to_account_info(),
-        &ctx.accounts.creator.to_account_info(),
-        &ctx.accounts.token_0_vault.to_account_info(),
-        &ctx.accounts.token_0_mint.to_account_info(),
-        &ctx.accounts.system_program.to_account_info(),
-        &ctx.accounts.token_0_program.to_account_info(),
+        &accounts.authority.to_account_info(),
+        &accounts.payer.to_account_info(),
+        &accounts.token_0_vault.to_account_info(),
+        &accounts.token_0_mint.to_account_info(),
+        &accounts.system_program.to_account_info(),
+        &accounts.token_0_program.to_account_info(),
         &[
             POOL_VAULT_SEED.as_bytes(),
-            ctx.accounts.pool_state.key().as_ref(),
-            ctx.accounts.token_0_mint.key().as_ref(),
-            &[ctx.bumps.token_0_vault][..],
+            accounts.pool_state.key().as_ref(),
+            accounts.token_0_mint.key().as_ref(),
+            &[accounts.token_0_vault_bump][..],
         ],
     )?;
 
     create_token_account(
-        &ctx.accounts.authority.to_account_info(),
-        &ctx.accounts.creator.to_account_info(),
-        &ctx.accounts.token_1_vault.to_account_info(),
-        &ctx.accounts.token_1_mint.to_account_info(),
-        &ctx.accounts.system_program.to_account_info(),
-        &ctx.accounts.token_1_program.to_account_info(),
+        &accounts.authority.to_account_info(),
+        &accounts.payer.to_account_info(),
+        &accounts.token_1_vault.to_account_info(),
+        &accounts.token_1_mint.to_account_info(),
+        &accounts.system_program.to_account_info(),
+        &accounts.token_1_program.to_account_info(),
         &[
             POOL_VAULT_SEED.as_bytes(),
-            ctx.accounts.pool_state.key().as_ref(),
-            ctx.accounts.token_1_mint.key().as_ref(),
-            &[ctx.bumps.token_1_vault][..],
+            accounts.pool_state.key().as_ref(),
+            accounts.token_1_mint.key().as_ref(),
+            &[accounts.token_1_vault_bump][..],
         ],
     )?;
 
     let pool_state_loader = create_pool(
-        &ctx.accounts.creator.to_account_info(),
-        &ctx.accounts.pool_state.to_account_info(),
-        &ctx.accounts.amm_config.to_account_info(),
-        &ctx.accounts.token_0_mint.to_account_info(),
-        &ctx.accounts.token_1_mint.to_account_info(),
-        &ctx.accounts.system_program.to_account_info(),
+        &accounts.payer.to_account_info(),
+        &accounts.pool_state.to_account_info(),
+        &accounts.amm_config.to_account_info(),
+        &accounts.token_0_mint.to_account_info(),
+        &accounts.token_1_mint.to_account_info(),
+        &accounts.system_program.to_account_info(),
     )?;
     let pool_state = &mut pool_state_loader.load_init()?;
 
-    let mut observation_state = ctx.accounts.observation_state.load_init()?;
-    observation_state.pool_id = ctx.accounts.pool_state.key();
+    let mut observation_state = accounts.observation_state.load_init()?;
+    observation_state.pool_id = accounts.pool_state.key();
 
     transfer_from_user_to_pool_vault(
-        ctx.accounts.creator.to_account_info(),
-        ctx.accounts.creator_token_0.to_account_info(),
-        ctx.accounts.token_0_vault.to_account_info(),
-        ctx.accounts.token_0_mint.to_account_info(),
-        ctx.accounts.token_0_program.to_account_info(),
+        accounts.payer.to_account_info(),
+        accounts.payer_token_0.to_account_info(),
+        accounts.token_0_vault.to_account_info(),
+        accounts.token_0_mint.to_account_info(),
+        accounts.token_0_program.to_account_info(),
         init_amount_0,
-        ctx.accounts.token_0_mint.decimals,
+        accounts.token_0_mint.decimals,
     )?;
 
     transfer_from_user_to_pool_vault(
-        ctx.accounts.creator.to_account_info(),
-        ctx.accounts.creator_token_1.to_account_info(),
-        ctx.accounts.token_1_vault.to_account_info(),
-        ctx.accounts.token_1_mint.to_account_info(),
-        ctx.accounts.token_1_program.to_account_info(),
+        accounts.payer.to_account_info(),
+        accounts.payer_token_1.to_account_info(),
+        accounts.token_1_vault.to_account_info(),
+        accounts.token_1_mint.to_account_info(),
+        accounts.token_1_program.to_account_info(),
         init_amount_1,
-        ctx.accounts.token_1_mint.decimals,
+        accounts.token_1_mint.decimals,
     )?;
 
     let token_0_vault =
         spl_token_2022::extension::StateWithExtensions::<spl_token_2022::state::Account>::unpack(
-            ctx.accounts
+            accounts
                 .token_0_vault
                 .to_account_info()
                 .try_borrow_data()?
@@ -281,7 +360,7 @@ pub fn initialize(
         .base;
     let token_1_vault =
         spl_token_2022::extension::StateWithExtensions::<spl_token_2022::state::Account>::unpack(
-            ctx.accounts
+            accounts
                 .token_1_vault
                 .to_account_info()
                 .try_borrow_data()?
@@ -305,57 +384,57 @@ pub fn initialize(
         token_1_vault.amount
     );
     token::token_mint_to(
-        ctx.accounts.authority.to_account_info(),
-        ctx.accounts.token_program.to_account_info(),
-        ctx.accounts.lp_mint.to_account_info(),
-        ctx.accounts.creator_lp_token.to_account_info(),
+        accounts.authority.to_account_info(),
+        accounts.token_program.to_account_info(),
+        accounts.lp_mint.to_account_info(),
+        accounts.payer_lp_token.to_account_info(),
         liquidity
             .checked_sub(lock_lp_amount)
             .ok_or(ErrorCode::InitLpAmountTooLess)?,
-        &[&[crate::AUTH_SEED.as_bytes(), &[ctx.bumps.authority]]],
+        &[&[crate::AUTH_SEED.as_bytes(), &[accounts.authority_bump]]],
     )?;
 
     // Charge the fee to create a pool
-    if ctx.accounts.amm_config.create_pool_fee != 0 {
+    if accounts.amm_config.create_pool_fee != 0 {
         invoke(
             &system_instruction::transfer(
-                ctx.accounts.creator.key,
-                &ctx.accounts.create_pool_fee.key(),
-                u64::from(ctx.accounts.amm_config.create_pool_fee),
+                accounts.payer.key,
+                &accounts.create_pool_fee.key(),
+                u64::from(accounts.amm_config.create_pool_fee),
             ),
             &[
-                ctx.accounts.creator.to_account_info(),
-                ctx.accounts.create_pool_fee.to_account_info(),
-                ctx.accounts.system_program.to_account_info(),
+                accounts.payer.to_account_info(),
+                accounts.create_pool_fee.to_account_info(),
+                accounts.system_program.to_account_info(),
             ],
         )?;
         invoke(
             &spl_token::instruction::sync_native(
-                ctx.accounts.token_program.key,
-                &ctx.accounts.create_pool_fee.key(),
+                accounts.token_program.key,
+                &accounts.create_pool_fee.key(),
             )?,
             &[
-                ctx.accounts.token_program.to_account_info(),
-                ctx.accounts.create_pool_fee.to_account_info(),
+                accounts.token_program.to_account_info(),
+                accounts.create_pool_fee.to_account_info(),
             ],
         )?;
     }
 
     pool_state.initialize(
-        ctx.bumps.authority,
+        accounts.authority_bump,
         liquidity,
         open_time,
-        ctx.accounts.creator.key(),
-        ctx.accounts.amm_config.key(),
-        ctx.accounts.token_0_vault.key(),
-        ctx.accounts.token_1_vault.key(),
-        &ctx.accounts.token_0_mint,
-        &ctx.accounts.token_1_mint,
-        ctx.accounts.lp_mint.key(),
-        ctx.accounts.lp_mint.decimals,
-        ctx.accounts.observation_state.key(),
-        CreatorFeeOn::BothToken,
-        false,
+        accounts.pool_creator,
+        accounts.amm_config.key(),
+        accounts.token_0_vault.key(),
+        accounts.token_1_vault.key(),
+        accounts.token_0_mint,
+        accounts.token_1_mint,
+        accounts.lp_mint.key(),
+        accounts.lp_mint.decimals,
+        accounts.observation_state.key(),
+        creator_fee_on,
+        enable_creator_fee,
     );
 
     Ok(())
