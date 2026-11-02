@@ -105,7 +105,9 @@ export async function getBlockTimestamp(
 /// `NotApproved`. Retry instead of sleeping: the surfnet clock advances with the
 /// transactions it processes, so waiting without sending anything never clears it.
 /// Only that one error is retried, so a real failure still surfaces immediately.
-export async function retryUntilPoolOpen<T>(send: () => Promise<T>): Promise<T> {
+export async function retryUntilPoolOpen<T>(
+  send: () => Promise<T>
+): Promise<T> {
   for (let attempt = 0; ; attempt++) {
     try {
       return await send();

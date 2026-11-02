@@ -37,6 +37,7 @@ import {
   getOrcleAccountAddress,
   getPoolVaultAddress,
   initializeWithPermission,
+  initializeV2,
   createCreatorFeeShare,
   createPermissionPda,
 } from "./utils";
@@ -237,21 +238,27 @@ describe("transfer hook mint admission", () => {
     );
   }
 
-  /// An open pool of a whitelisted stub-hook mint and a plain mint. The hook declares
-  /// `extras(pool)` as literal extra accounts; it gets the pool's addresses because a hook can
-  /// name them before the pool exists. `hookAccounts` is what every transfer must carry.
-  /// `withPermission` creates it through `initialize_with_permission`, the only entry point
-  /// that turns the creator fee on.
+  /// An open pool of a stub-hook mint and a plain mint. The hook declares `extras(pool)` as
+  /// literal extra accounts; it gets the pool's addresses because a hook can name them before
+  /// the pool exists. `hookAccounts` is what every transfer must carry.
+  /// `entry` picks the creation instruction: `initialize`, `initialize_with_permission`, or
+  /// `initialize_v2` (the last two turn the creator fee on). `whitelist: false` skips the
+  /// `SupportMintAssociated` PDA, which a hook mint does not need.
   async function createHookPool(
     configIndex: number,
     extras: (pool: {
       poolAddress: PublicKey;
       observation: PublicKey;
     }) => PublicKey[] = () => [],
-    opts: { rates?: Partial<typeof LOW_FEES>; withPermission?: boolean } = {}
+    opts: {
+      rates?: Partial<typeof LOW_FEES>;
+      entry?: "initialize" | "permission" | "v2";
+      whitelist?: boolean;
+    } = {}
   ) {
     const mint = await createMintWithHookExtension(STUB_ID);
-    const supportMint = await whitelist(mint);
+    const whitelistPdas =
+      opts.whitelist === false ? [] : [await whitelist(mint)];
     const { pair, poolAddress } = await setupPair(
       mint,
       configIndex,
@@ -275,14 +282,25 @@ describe("transfer hook mint admission", () => {
       initAmount0: new BN(100_000),
       initAmount1: new BN(100_000),
     };
-    const remaining = asMetas([supportMint, ...hookAccounts]);
-    if (opts.withPermission) {
+    const remaining = asMetas([...whitelistPdas, ...hookAccounts]);
+    if (opts.entry === "permission") {
       await initializeWithPermission(
         program,
         owner,
         owner.publicKey,
         ...pair,
         undefined,
+        confirmOptions,
+        initAmount,
+        undefined,
+        remaining
+      );
+    } else if (opts.entry === "v2") {
+      await initializeV2(
+        program,
+        owner,
+        ...pair,
+        { bothToken: {} },
         confirmOptions,
         initAmount,
         undefined,
@@ -722,7 +740,7 @@ describe("transfer hook mint admission", () => {
     const { pair, poolAddress, hookAccounts } = await createHookPool(
       43,
       ({ poolAddress }) => [poolAddress],
-      { rates: COLLECTABLE_FEES, withPermission: true }
+      { rates: COLLECTABLE_FEES, entry: "permission" }
     );
     const hookBag = asMetas(hookAccounts);
     const a = await collectAccounts(pair, poolAddress);
@@ -783,6 +801,97 @@ describe("transfer hook mint admission", () => {
           .rpc(confirmOptions),
       shareRate
     );
+  });
+
+  it("creates a hook pool through initialize_v2 without the whitelist and collects its creator fee", async () => {
+    // The only coverage of `initialize_v2` for a hook mint. The hook names the pool and its
+    // observation, so this also proves the shared creation flow loads both only after the
+    // initial deposit's hook CPIs.
+    const { pair, poolAddress, hookAccounts } = await createHookPool(
+      45,
+      ({ poolAddress, observation }) => [poolAddress, observation],
+      { rates: COLLECTABLE_FEES, entry: "v2", whitelist: false }
+    );
+    const poolState = await program.account.poolState.fetch(poolAddress);
+    assert.isTrue(poolState.enableCreatorFee);
+
+    const hookBag = asMetas(hookAccounts);
+    const a = await collectAccounts(pair, poolAddress);
+    await tradeBothWays(pair, poolAddress, hookBag);
+    await expectCollected(
+      poolAddress,
+      "creatorFees",
+      [a.ownerToken0, a.ownerToken1],
+      () =>
+        program.methods
+          .collectCreatorFee()
+          .accountsPartial({
+            poolState: a.poolState,
+            token0Vault: a.token0Vault,
+            token1Vault: a.token1Vault,
+            vault0Mint: a.vault0Mint,
+            vault1Mint: a.vault1Mint,
+            token0Program: a.token0Program,
+            token1Program: a.token1Program,
+            creator: owner.publicKey,
+            ammConfig: a.ammConfig,
+          })
+          .remainingAccounts(hookBag)
+          .rpc(confirmOptions)
+    );
+  });
+
+  it("creates a pool for a whitelisted hook mint through initialize_v2", async () => {
+    const mint = await createMintWithHookExtension(STUB_ID);
+    const supportMint = await whitelist(mint);
+    const list = await createExtraAccountMetaList(
+      connection,
+      owner,
+      mint,
+      STUB_ID
+    );
+    const { pair } = await setupPair(mint, 46);
+    const initAmount = { initAmount0: new BN(1000), initAmount1: new BN(1000) };
+
+    // The whitelist PDA alone admits the mint but cannot carry the initial deposit.
+    let err: any;
+    try {
+      await initializeV2(
+        program,
+        owner,
+        ...pair,
+        null,
+        confirmOptions,
+        initAmount,
+        undefined,
+        asMetas([supportMint])
+      );
+    } catch (e) {
+      err = e;
+    }
+    assert.isDefined(err, "a hook mint created a v2 pool without its list");
+    assert.include(
+      JSON.stringify(err),
+      "NoExtraAccountsForTransferHook",
+      `unexpected: ${err}`
+    );
+
+    // The same unordered bag as `initialize`: whitelist PDA first, hook accounts after.
+    const { poolState } = await initializeV2(
+      program,
+      owner,
+      ...pair,
+      null,
+      confirmOptions,
+      initAmount,
+      undefined,
+      asMetas([supportMint, STUB_ID, list])
+    );
+    assert.equal(poolState.enableCreatorFee, false);
+    const hookIsToken0 = poolState.token0Mint.toBase58() === mint.toBase58();
+    const vault = hookIsToken0 ? poolState.token0Vault : poolState.token1Vault;
+    const balance = await connection.getTokenAccountBalance(vault);
+    assert.equal(balance.value.amount, "1000");
   });
 
   it("trades a pool where both mints carry a hook", async () => {

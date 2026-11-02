@@ -262,7 +262,8 @@ pub(crate) struct InitializePoolAccounts<'a, 'info> {
     pub token_0_program: &'a Interface<'info, TokenInterface>,
     pub token_1_program: &'a Interface<'info, TokenInterface>,
     pub system_program: &'a Program<'info, System>,
-    /// Optional `SupportMintAssociated` accounts for token-2022 mints.
+    /// Located by key, in any order: optional `SupportMintAssociated` PDAs for token-2022
+    /// mints, and each transfer hook mint's hook program, `ExtraAccountMetaList` PDA and extras.
     pub remaining_accounts: &'a [AccountInfo<'info>],
     pub authority_bump: u8,
     pub token_0_vault_bump: u8,

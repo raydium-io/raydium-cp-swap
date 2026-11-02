@@ -384,7 +384,9 @@ export async function initializeV2(
     initAmount0: new BN(10000000000),
     initAmount1: new BN(20000000000),
   },
-  createPoolFee = new PublicKey("DNXgeM9EiiaAbaWvwjHj9fQQLAX5ZsfHyvmYUNRAdNC8")
+  createPoolFee = new PublicKey("DNXgeM9EiiaAbaWvwjHj9fQQLAX5ZsfHyvmYUNRAdNC8"),
+  // Whitelist PDAs and transfer hook accounts, all located by key.
+  remainingAccounts: AccountMeta[] = []
 ) {
   const [auth] = await getAuthAddress(program.programId);
   const [poolAddress] = await getPoolAddress(
@@ -459,6 +461,7 @@ export async function initializeV2(
       token1Program: token1Program,
       systemProgram: SystemProgram.programId,
     })
+    .remainingAccounts(remainingAccounts)
     .rpc(confirmOptions);
 
   const poolState = await program.account.poolState.fetch(poolAddress);
@@ -1128,62 +1131,6 @@ export async function collectCreatorFeePermissionless(
       systemProgram: SystemProgram.programId,
     })
     .signers([payer])
-    .rpc(confirmOptions);
-}
-
-export async function collectSharedCreatorFee(
-  program: Program<RaydiumCpSwap>,
-  owner: Signer,
-  poolAddress: PublicKey,
-  token0: PublicKey,
-  token0Program: PublicKey,
-  token1: PublicKey,
-  token1Program: PublicKey,
-  amount0Requested: BN,
-  amount1Requested: BN,
-  confirmOptions?: ConfirmOptions,
-  // the authority of the recipient token accounts, defaults to the signer; pass an
-  // existing one to isolate the owner check when the signer has no token accounts
-  recipientAuthority: PublicKey = owner.publicKey
-) {
-  const [auth] = await getAuthAddress(program.programId);
-  const [vault0] = await getPoolVaultAddress(
-    poolAddress,
-    token0,
-    program.programId
-  );
-  const [vault1] = await getPoolVaultAddress(
-    poolAddress,
-    token1,
-    program.programId
-  );
-
-  return program.methods
-    .collectSharedCreatorFee(amount0Requested, amount1Requested)
-    .accountsPartial({
-      owner: owner.publicKey,
-      authority: auth,
-      poolState: poolAddress,
-      token0Vault: vault0,
-      token1Vault: vault1,
-      vault0Mint: token0,
-      vault1Mint: token1,
-      recipientToken0Account: getAssociatedTokenAddressSync(
-        token0,
-        recipientAuthority,
-        false,
-        token0Program
-      ),
-      recipientToken1Account: getAssociatedTokenAddressSync(
-        token1,
-        recipientAuthority,
-        false,
-        token1Program
-      ),
-      tokenProgram: TOKEN_PROGRAM_ID,
-      tokenProgram2022: TOKEN_2022_PROGRAM_ID,
-    })
-    .signers([owner])
     .rpc(confirmOptions);
 }
 
